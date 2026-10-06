@@ -1,0 +1,11 @@
+[project]
+name = "trustchain-idrs"
+version = "1.0.0"
+description = "Blockchain-backed intrusion detection and response for smart homes"
+requires-python = ">=3.10"
+readme = "README.md"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"

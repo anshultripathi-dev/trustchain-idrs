@@ -1,0 +1,21 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Runtime data: ledger copies, private keys, local log. NEVER commit.
+data/
+
+# Generated models (retrain with `make train`)
+models/*
+!models/.gitkeep
+
+# Local configuration and secrets
+.env
+firmware/.local/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Firmware must not contain real Wi-Fi credentials
+        run: |
+          for f in firmware/esp1/esp1.ino firmware/esp2/esp2.ino; do
+            grep -q 'ssid = "YOUR_WIFI_SSID"' "$f" || { echo "$f: SSID is not the placeholder"; exit 1; }
+            grep -q 'password = "YOUR_WIFI_PASSWORD"' "$f" || { echo "$f: password is not the placeholder"; exit 1; }
+          done
+
+      - name: Dashboard JS syntax
+        run: |
+          for f in web/js/*.js web/pages/*.js; do
+            cp "$f" /tmp/check.mjs
+            node --check /tmp/check.mjs
+          done
+
+      - name: Tests
+        run: python -m pytest
