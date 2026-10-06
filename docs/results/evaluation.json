@@ -1,0 +1,98 @@
+{
+  "synthetic": true,
+  "trials": 3,
+  "scenarios": {
+    "BRUTE_FORCE": {
+      "label": "Brute-force PIN",
+      "layer": "traffic",
+      "detection_rate": 1.0,
+      "classification_rate": 1.0,
+      "mean_latency_ticks": 1.0,
+      "quarantine_rate": 1.0,
+      "ledger_consistent": true
+    },
+    "REQUEST_FLOOD": {
+      "label": "Request flood",
+      "layer": "traffic",
+      "detection_rate": 1.0,
+      "classification_rate": 1.0,
+      "mean_latency_ticks": 1.0,
+      "quarantine_rate": 1.0,
+      "ledger_consistent": true
+    },
+    "SERVICE_PROBING": {
+      "label": "Service probing",
+      "layer": "traffic",
+      "detection_rate": 1.0,
+      "classification_rate": 1.0,
+      "mean_latency_ticks": 1.0,
+      "quarantine_rate": 1.0,
+      "ledger_consistent": true
+    },
+    "SENSOR_ANOMALY": {
+      "label": "Sensor manipulation",
+      "layer": "traffic",
+      "detection_rate": 1.0,
+      "classification_rate": 1.0,
+      "mean_latency_ticks": 1.0,
+      "quarantine_rate": 1.0,
+      "ledger_consistent": true
+    },
+    "STEALTH_SURGE": {
+      "label": "Low-and-slow surge",
+      "layer": "traffic",
+      "detection_rate": 1.0,
+      "classification_rate": 1.0,
+      "mean_latency_ticks": 2.0,
+      "quarantine_rate": 1.0,
+      "ledger_consistent": true
+    },
+    "REPLAY": {
+      "label": "Replay attack",
+      "layer": "crypto",
+      "detection_rate": 1.0,
+      "classification_rate": 1.0,
+      "mean_latency_ticks": 1.0,
+      "quarantine_rate": 0.0,
+      "ledger_consistent": true
+    },
+    "SPOOFING": {
+      "label": "Identity spoofing",
+      "layer": "crypto",
+      "detection_rate": 1.0,
+      "classification_rate": 1.0,
+      "mean_latency_ticks": 1.0,
+      "quarantine_rate": 0.0,
+      "ledger_consistent": true
+    },
+    "ROGUE_DEVICE": {
+      "label": "Rogue device joins",
+      "layer": "crypto",
+      "detection_rate": 1.0,
+      "classification_rate": 1.0,
+      "mean_latency_ticks": 1.0,
+      "quarantine_rate": 1.0,
+      "ledger_consistent": true
+    }
+  },
+  "tamper": {
+    "LOG_TAMPERING": {
+      "detection_rate": 1.0,
+      "quarantine_rate": 1.0
+    },
+    "LEDGER_NODE_TAMPERING": {
+      "detection_rate": 1.0,
+      "quarantine_rate": 0.0
+    }
+  },
+  "clean": {
+    "ticks": 1200,
+    "device_ticks": 6000,
+    "false_events": 1,
+    "false_positive_rate": 0.000167,
+    "false_quarantines": 0,
+    "sim_days": 4.17
+  },
+  "seconds": 284.1,
+  "finished_at": 1791224492.329519
+}

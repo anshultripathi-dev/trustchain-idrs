@@ -1,0 +1,308 @@
+{
+  "trained_at": 1791225413.754761,
+  "data": "synthetic simulator traffic (not real household data)",
+  "seconds": 21.6,
+  "features": [
+    "req_rate",
+    "bad_req_rate",
+    "failed_auth",
+    "endpoints_hit",
+    "primary_z",
+    "req_z"
+  ],
+  "samples": {
+    "train_normal": 11520,
+    "train_attack": 5400,
+    "test_normal": 8640,
+    "test_attack": 8100
+  },
+  "if_threshold": -0.1273,
+  "clf_confidence_threshold": 0.7,
+  "comparison": {
+    "static_rules": {
+      "false_positive_rate_tick": 0.00012,
+      "false_positive_rate_confirmed": 0.00012,
+      "episode_recall_macro": 0.64,
+      "per_attack": {
+        "BRUTE_FORCE": {
+          "tick_recall": 1.0,
+          "episode_recall": 1.0,
+          "mean_latency_ticks": 0.0
+        },
+        "REQUEST_FLOOD": {
+          "tick_recall": 1.0,
+          "episode_recall": 1.0,
+          "mean_latency_ticks": 0.0
+        },
+        "SERVICE_PROBING": {
+          "tick_recall": 1.0,
+          "episode_recall": 1.0,
+          "mean_latency_ticks": 0.0
+        },
+        "SENSOR_ANOMALY": {
+          "tick_recall": 0.1062,
+          "episode_recall": 0.2,
+          "mean_latency_ticks": 0.61
+        },
+        "STEALTH_SURGE": {
+          "tick_recall": 0.0,
+          "episode_recall": 0.0,
+          "mean_latency_ticks": null
+        }
+      }
+    },
+    "isolation_forest": {
+      "false_positive_rate_tick": 0.00729,
+      "false_positive_rate_confirmed": 0.00023,
+      "episode_recall_macro": 0.9133,
+      "per_attack": {
+        "BRUTE_FORCE": {
+          "tick_recall": 1.0,
+          "episode_recall": 1.0,
+          "mean_latency_ticks": 1.0
+        },
+        "REQUEST_FLOOD": {
+          "tick_recall": 1.0,
+          "episode_recall": 1.0,
+          "mean_latency_ticks": 1.0
+        },
+        "SERVICE_PROBING": {
+          "tick_recall": 1.0,
+          "episode_recall": 1.0,
+          "mean_latency_ticks": 1.0
+        },
+        "SENSOR_ANOMALY": {
+          "tick_recall": 0.4043,
+          "episode_recall": 0.5667,
+          "mean_latency_ticks": 3.24
+        },
+        "STEALTH_SURGE": {
+          "tick_recall": 1.0,
+          "episode_recall": 1.0,
+          "mean_latency_ticks": 1.0
+        }
+      }
+    },
+    "hybrid": {
+      "false_positive_rate_tick": 0.00775,
+      "false_positive_rate_confirmed": 0.00035,
+      "episode_recall_macro": 1.0,
+      "per_attack": {
+        "BRUTE_FORCE": {
+          "tick_recall": 1.0,
+          "episode_recall": 1.0,
+          "mean_latency_ticks": 0.0
+        },
+        "REQUEST_FLOOD": {
+          "tick_recall": 1.0,
+          "episode_recall": 1.0,
+          "mean_latency_ticks": 0.0
+        },
+        "SERVICE_PROBING": {
+          "tick_recall": 1.0,
+          "episode_recall": 1.0,
+          "mean_latency_ticks": 0.0
+        },
+        "SENSOR_ANOMALY": {
+          "tick_recall": 0.9951,
+          "episode_recall": 1.0,
+          "mean_latency_ticks": 0.87
+        },
+        "STEALTH_SURGE": {
+          "tick_recall": 1.0,
+          "episode_recall": 1.0,
+          "mean_latency_ticks": 1.0
+        }
+      }
+    }
+  },
+  "classifier": {
+    "accuracy": 0.9983,
+    "report": {
+      "NORMAL": {
+        "precision": 0.9991,
+        "recall": 0.9977,
+        "f1-score": 0.9984,
+        "support": 8640.0
+      },
+      "BRUTE_FORCE": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 1620.0
+      },
+      "REQUEST_FLOOD": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 1620.0
+      },
+      "SERVICE_PROBING": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 1620.0
+      },
+      "SENSOR_ANOMALY": {
+        "precision": 0.9877,
+        "recall": 0.9951,
+        "f1-score": 0.9914,
+        "support": 1620.0
+      },
+      "STEALTH_SURGE": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 1620.0
+      }
+    },
+    "labels": [
+      "NORMAL",
+      "BRUTE_FORCE",
+      "REQUEST_FLOOD",
+      "SERVICE_PROBING",
+      "SENSOR_ANOMALY",
+      "STEALTH_SURGE"
+    ],
+    "confusion": [
+      [
+        8620,
+        0,
+        0,
+        0,
+        20,
+        0
+      ],
+      [
+        0,
+        1620,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        1620,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        1620,
+        0,
+        0
+      ],
+      [
+        8,
+        0,
+        0,
+        0,
+        1612,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1620
+      ]
+    ],
+    "importances": {
+      "req_rate": 0.1915,
+      "bad_req_rate": 0.1587,
+      "failed_auth": 0.1513,
+      "endpoints_hit": 0.1999,
+      "primary_z": 0.1802,
+      "req_z": 0.1183
+    }
+  },
+  "score_hist": {
+    "edges": [
+      -0.3071,
+      -0.2898,
+      -0.2724,
+      -0.2551,
+      -0.2377,
+      -0.2203,
+      -0.203,
+      -0.1856,
+      -0.1683,
+      -0.1509,
+      -0.1335,
+      -0.1162,
+      -0.0988,
+      -0.0815,
+      -0.0641,
+      -0.0467,
+      -0.0294,
+      -0.012,
+      0.0053,
+      0.0227,
+      0.0401,
+      0.0574,
+      0.0748,
+      0.0922,
+      0.1095
+    ],
+    "normal": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      5,
+      12,
+      11,
+      23,
+      38,
+      63,
+      64,
+      101,
+      182,
+      287,
+      391,
+      474,
+      548,
+      734,
+      1098,
+      1841,
+      2102,
+      664
+    ],
+    "attack": [
+      64,
+      786,
+      1010,
+      2401,
+      1522,
+      694,
+      206,
+      116,
+      133,
+      143,
+      173,
+      166,
+      300,
+      301,
+      84,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "threshold": -0.1273
+  }
+}
