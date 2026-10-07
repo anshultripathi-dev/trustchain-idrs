@@ -377,7 +377,7 @@ class Engine:
             quarantine = True
         action = "QUARANTINE_DEVICE" if quarantine else ACTION_FOR[sev]
 
-        event_id = self.store.next_event_id()
+        event_id = self.store.next_event_id(floor=len(self.contract.event_order))
         details = _clean({"detectors": detectors, "sample": sample, "network": meta, "repeat_count": mem["repeat_count"],
                           "base_severity": BAND_SEVERITY[band(risk)], "gateway_attested": attested, **(extra or {})})
         rec = {"event_id": event_id, "ts": round(now, 3), "device_id": device_id, "event_type": etype, "severity": sev,

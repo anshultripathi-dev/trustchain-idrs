@@ -110,6 +110,38 @@ def test_deleting_a_log_record_is_detected(model):
     assert "MISSING_RECORD" in kinds
 
 
+def test_store_event_ids_are_monotonic_after_deleting_an_older_record():
+    """Regression: ids came from the row count, so deleting an OLDER record made the next id collide with a live one."""
+    from trustchain.store import LocalStore
+    s = LocalStore(":memory:")
+    ids = []
+    for i in range(3):
+        rec = {"event_id": s.next_event_id(), "ts": float(i), "device_id": "d", "event_type": "X", "severity": "LOW",
+               "risk_score": 0.1, "fingerprint": "f", "event_hash": "h"}
+        s.save_event(rec, {})
+        ids.append(rec["event_id"])
+    s.raw_delete(ids[0])                                        # an intruder erases an older entry
+    new = s.next_event_id()
+    assert new not in ids and new > ids[-1]
+    assert s.next_event_id(floor=50) == "EVT-000051"            # the ledger's event count lifts the floor if the store was lost
+
+
+def test_deleting_an_older_log_record_cannot_blind_the_ids(model):
+    """End to end: after an older record is deleted, new attacks must still be recorded (and anchored on the ledger)."""
+    e = engine(model)
+    meta = {"source": "10.0.0.7", "port": 80, "protocol": "HTTP"}
+    smp = {"req_rate": 30.0, "failed_auth": 0}
+    first = e._raise_event(FAN, "REQUEST_FLOOD", 0.8, meta, smp, {}, e.clock.now())
+    for dev in ("did:trustchain:bulb:001", "did:trustchain:door:001"):
+        e._raise_event(dev, "REQUEST_FLOOD", 0.8, meta, smp, {}, e.clock.now())
+    e.tamper_local(event_id=first["event_id"], mode="delete")   # erase the OLDEST record
+    e.run_integrity()
+    rec = e._raise_event("did:trustchain:esp32:002", "SERVICE_PROBING", 0.7, meta, smp, {}, e.clock.now())
+    assert rec is not None                                      # recorded, not lost to an id collision
+    ids = [x["event_id"] for x in e.store.list_events(100)]
+    assert len(ids) == len(set(ids)) and rec["event_id"] in e.contract.events
+
+
 def test_tampered_validator_is_detected_and_network_keeps_running(model):
     e = engine(model)
     e.launch_attack("BRUTE_FORCE", SMART_HOME_ID)

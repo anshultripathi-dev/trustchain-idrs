@@ -33,12 +33,24 @@ class LocalStore:
                 risk_score REAL, source TEXT, fingerprint TEXT, trust_after REAL, action TEXT,
                 event_hash TEXT, chain_block INTEGER, details TEXT)"""
         )
+        self._db.execute("CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v INTEGER)")
         self._db.commit()
 
-    def next_event_id(self) -> str:
+    def next_event_id(self, floor: int = 0) -> str:
+        """Monotonic event identifiers.
+
+        Never derived from the row count: an intruder (or the tamper demo) deleting a record would make the
+        count drop, the next id would collide with an existing one, and every new event would then fail to be
+        recorded -- deleting one log entry would blind the IDS. `floor` lets the caller pass the number of events
+        already on the ledger so ids also stay unique if this local store was lost or reset.
+        """
         with self._lock:
-            n = self._db.execute("SELECT COUNT(*) FROM events").fetchone()[0]
-            return f"EVT-{n + 1:06d}"
+            row = self._db.execute("SELECT v FROM meta WHERE k='event_seq'").fetchone()
+            seen = self._db.execute("SELECT COALESCE(MAX(CAST(SUBSTR(event_id, 5) AS INTEGER)), 0) FROM events").fetchone()[0]
+            n = max(row[0] if row else 0, int(seen), int(floor)) + 1
+            self._db.execute("INSERT OR REPLACE INTO meta (k, v) VALUES ('event_seq', ?)", (n,))
+            self._db.commit()
+            return f"EVT-{n:06d}"
 
     def save_event(self, rec: dict[str, Any], details: dict[str, Any]) -> None:
         with self._lock:
