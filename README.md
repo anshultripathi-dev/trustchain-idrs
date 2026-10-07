@@ -151,7 +151,7 @@ trustchain/
   api.py               FastAPI REST + WebSocket
 web/                   dashboard (no-build ES modules, SVG charts)
 firmware/              ESP32 sketches (esp1 smart-home node, esp2 security node)
-tests/                 44 tests: ledger, closed loop, full smart home, API, hardware adapters
+tests/                 46 tests: ledger, closed loop, full smart home, API, hardware adapters
 scripts/               train_models.py, evaluate.py
 docs/                  architecture, hardware, demo, evaluation, threat model, images, proposals
 ```
@@ -171,7 +171,7 @@ docs/                  architecture, hardware, demo, evaluation, threat model, i
 ## Development
 
 ```bash
-make test           # 44 tests, hermetic (simulation mode and the 5-device home regardless of .env)
+make test           # 46 tests, hermetic (simulation mode and the 5-device home regardless of .env)
 make evaluate       # full attack-scenario evaluation (~5 min), writes data/evaluation.json
 make check-js       # syntax-check the dashboard modules
 ```

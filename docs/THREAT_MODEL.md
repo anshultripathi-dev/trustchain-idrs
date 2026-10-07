@@ -28,6 +28,7 @@
 | Flood / probing / brute force | Rules + adaptive baseline + ML; trust penalty; escalation by attack memory | evaluation, engine tests |
 | Slow ("low-and-slow") attacks | Per-device per-hour baseline; ML | `test_stealth_surge_*` |
 | Log tampering (edit / delete) | Hash of every record anchored on-chain; checker recomputes and compares; mismatch lowers trust | `test_local_log_tampering_*`, `test_deleting_*` |
+| Deleting an old log record to blind the IDS (event ids colliding) | Event ids come from a monotonic counter, never from the row count, so a deletion cannot make new events collide and vanish | `test_store_event_ids_are_monotonic_after_deleting_an_older_record`, `test_deleting_an_older_log_record_cannot_blind_the_ids` |
 | Ledger copy tampering | Hash links, proposer + quorum signatures against genesis keys, cross-node comparison; faulty node excluded and healed | `test_ledger.py` (incl. re-hash attack) |
 | Unsafe automated response | Lock is fail-secure; recovery is administrator-gated and logged | `test_quarantine_blocks_commands_*` |
 | Unauthorised admin actions | Admin token on every state-changing endpoint; localhost bind by default | `test_admin_endpoints_require_token` |
