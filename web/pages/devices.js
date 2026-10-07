@@ -4,15 +4,16 @@ import { pageHeader, card, deviceCard, checkRow, empty } from '../js/shared.js';
 
 export default function devices(root, { param, param2 }) {
   let selected = param ? decodeURIComponent(param) : null;
-  let tab = ['telemetry', 'trust', 'baseline', 'identity', 'events', 'commands'].includes(param2) ? param2 : 'telemetry', detail = null, lastFetch = 0, last = null;
-  const grid = h('div', { class: 'grid g3' }), panel = h('div', { style: { marginTop: '14px' } });
+  let room = 'all', tab = ['telemetry', 'trust', 'baseline', 'identity', 'events', 'commands'].includes(param2) ? param2 : 'telemetry', detail = null, lastFetch = 0, last = null;
+  const grid = h('div'), panel = h('div', { style: { marginBottom: '6px' } });
   const risk = new LineChart({ height: 180, yMin: 0, yMax: 1, yFmt: (v) => v.toFixed(2), xFmt: fmt.time, label: 'risk' });
   const req = new LineChart({ height: 180, xFmt: fmt.time, yFmt: (v) => v.toFixed(1), label: 'request rate' });
   const prim = new LineChart({ height: 180, xFmt: fmt.time, yFmt: (v) => v.toFixed(1), label: 'primary sensor' });
   const trust = new LineChart({ height: 200, yMin: 0, yMax: 100, step: true, yFmt: (v) => v.toFixed(0), xFmt: fmt.time, label: 'trust history',
     refs: [{ y: 20, label: 'quarantine < 20', color: 'var(--crit)' }] });
   const base = new LineChart({ height: 220, xMin: 0, xMax: 24, xFmt: (v) => `${String(Math.round(v)).padStart(2, '0')}:00`, yFmt: (v) => v.toFixed(1), label: 'baseline' });
-  root.append(pageHeader('Devices & trust', 'Every device has a ledger-registered identity, a dynamic trust score and a time-of-day behavioural baseline.'), grid, panel);
+  const roomSel = h('select', { 'aria-label': 'Filter by room', onchange: (e) => { room = e.target.value; renderGrid(); } }, h('option', { value: 'all' }, 'All rooms'));
+  root.append(pageHeader('Devices & trust', 'Every device has a ledger-registered identity, a dynamic trust score and a time-of-day behavioural baseline.', roomSel), panel, grid);
 
   async function load() {
     if (!selected) return;
@@ -20,22 +21,33 @@ export default function devices(root, { param, param2 }) {
     try { detail = await api.get('/api/devices/' + encodeURIComponent(selected)); } catch { detail = null; }
     renderPanel();
   }
-  function select(id) { selected = id; history.replaceState(null, '', '#/devices/' + encodeURIComponent(id)); detail = null; renderPanel(); load(); renderGrid(); }
+  function select(id) { selected = id; history.replaceState(null, '', '#/devices/' + encodeURIComponent(id)); detail = null; renderPanel(); load(); renderGrid(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
   function renderGrid() {
     if (!last) return;
-    clear(grid, last.devices.map((d) => deviceCard(d, { selected: d.id === selected, onclick: () => select(d.id) })),
-      last.unknown_devices.map((u) => deviceCard({ ...u, series: [], sample: {}, band: 'CRITICAL', risk: 0, primary_name: '' }, { selected: u.id === selected, onclick: () => select(u.id) })));
+    if (roomSel.options.length === 1) (last.rooms || []).forEach((r) => roomSel.append(h('option', { value: r.id }, `${r.icon} ${r.name} (${r.count})`)));
+    const parts = [];
+    for (const r of last.rooms || []) {
+      if (room !== 'all' && room !== r.id) continue;
+      const devs = last.devices.filter((x) => x.room === r.id);
+      parts.push(h('div', { class: 'group-hd' }, h('span', { 'aria-hidden': 'true' }, r.icon), h('h2', null, r.name), h('small', null, `${devs.length} devices`)),
+        h('div', { class: 'grid g3' }, devs.map((d) => deviceCard(d, { selected: d.id === selected, onclick: () => select(d.id) }))));
+    }
+    const orphans = (last.devices || []).filter((x) => !x.room);
+    if (orphans.length) parts.push(h('div', { class: 'grid g3' }, orphans.map((d) => deviceCard(d, { selected: d.id === selected, onclick: () => select(d.id) }))));
+    if (room === 'all' && last.unknown_devices.length) parts.push(h('div', { class: 'group-hd' }, h('span', null, '❓'), h('h2', null, 'Unregistered devices'), h('small', null, 'not enrolled on the ledger')),
+      h('div', { class: 'grid g3' }, last.unknown_devices.map((u) => deviceCard({ ...u, series: [], sample: {}, band: 'CRITICAL', risk: 0, primary_name: '' }, { selected: u.id === selected, onclick: () => select(u.id) }))));
+    clear(grid, parts);
   }
   const tabs = () => h('div', { class: 'tabs', role: 'tablist' }, [['telemetry', 'Telemetry'], ['trust', 'Trust timeline'], ['baseline', 'Adaptive baseline'], ['identity', 'Identity'], ['events', 'Events'], ['commands', 'Gateway commands']].map(([k, l]) =>
     h('button', { class: tab === k ? 'on' : '', role: 'tab', 'aria-selected': tab === k, onclick: () => { tab = k; renderPanel(); } }, l)));
 
   function renderPanel() {
-    if (!selected) { clear(panel, card(null, empty('Select a device to inspect its telemetry, identity, trust history and baseline.'))); return; }
+    if (!selected) { clear(panel); return; }          // nothing selected: the grid below is the page
     if (!detail) { clear(panel, card(null, empty('Loading…'))); return; }
     const d = detail.device; const live = last?.devices.find((x) => x.id === selected);
     const dd = live ? { ...d, ...live, series: d.series } : d;
     const head = h('div', { class: 'row spread', style: { marginBottom: '10px' } },
-      h('div', { class: 'row' }, h('h2', null, dd.name), badge(dd.status), dd.band && badge(dd.band, 'risk ' + dd.band), dd.unregistered && h('span', { class: 'badge b-CRITICAL' }, 'unregistered')),
+      h('div', { class: 'row' }, h('h2', null, dd.icon ? `${dd.icon} ${dd.name}` : dd.name), dd.room_name && h('span', { class: 'badge' }, dd.room_name), badge(dd.status), dd.band && badge(dd.band, 'risk ' + dd.band), dd.unregistered && h('span', { class: 'badge b-CRITICAL' }, 'unregistered')),
       h('div', { class: 'row' }, dd.status === 'ACTIVE' && !dd.unregistered && h('button', { class: 'btn danger sm', onclick: () => act('Quarantined', () => api.post(`/api/devices/${encodeURIComponent(dd.id)}/quarantine`)).then(load) }, icon('lock', 13), 'Quarantine'),
         dd.status !== 'ACTIVE' && h('a', { class: 'btn sm', href: '#/response' }, 'Recovery workflow →')));
     const body = h('div');
@@ -46,7 +58,7 @@ export default function devices(root, { param, param2 }) {
       prim.setData([{ label: dd.primary_name, color: 'var(--s3)', points: s.map((p) => ({ x: p.t, y: p.primary })) }], { yMin: undefined, yMax: undefined });
       body.append(h('div', { class: 'grid g3' }, card('Risk', risk.root), card('Requests / second', req.root), card(dd.primary_name?.replaceAll('_', ' ') || 'Primary sensor', prim.root)),
         dd.risk_parts && h('div', { class: 'note', style: { marginTop: '12px' } }, 'Risk composition (noisy-OR of): ', Object.entries(dd.risk_parts).map(([k, v]) => `${k} ${v.toFixed(2)}`).join(' · ')),
-        dd.lock_policy && h('div', { class: 'note warn', style: { marginTop: '12px' } }, icon('lock', 13), ' ', h('b', null, 'Lock safety policy. '), dd.lock_policy));
+        dd.fail_policy && h('div', { class: 'note warn', style: { marginTop: '12px' } }, icon('lock', 13), ' ', h('b', null, dd.critical ? 'Safety-critical · quarantine policy. ' : 'Quarantine policy. '), dd.fail_policy));
     } else if (tab === 'trust') {
       const th = detail.trust_history || [];
       trust.setData([{ label: 'Trust', color: 'var(--s1)', points: th.map((p) => ({ x: p.ts, y: p.trust })) }]);

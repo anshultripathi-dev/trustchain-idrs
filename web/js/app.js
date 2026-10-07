@@ -1,4 +1,5 @@
 import { h, clear, icon, badge, store, subscribe, connect, api, getToken, promptAdmin, toast } from './core.js';
+import home from '../pages/home.js';
 import overview from '../pages/overview.js';
 import devices from '../pages/devices.js';
 import ledger from '../pages/ledger.js';
@@ -8,7 +9,7 @@ import lab from '../pages/lab.js';
 import response from '../pages/response.js';
 
 const PAGES = [
-  ['overview', 'Overview', 'shield', overview], ['devices', 'Devices & Trust', 'chip', devices], ['threats', 'Threats & Memory', 'alert', threats],
+  ['home', 'Smart Home', 'home', home], ['overview', 'Security Overview', 'shield', overview], ['devices', 'Devices & Trust', 'chip', devices], ['threats', 'Threats & Memory', 'alert', threats],
   ['ledger', 'Ledger', 'chain', ledger], ['response', 'Response & Recovery', 'siren', response], ['ml', 'ML Lab', 'brain', ml], ['lab', 'Attack Lab', 'flask', lab],
 ];
 const nav = document.getElementById('nav'), page = document.getElementById('page');
@@ -24,7 +25,7 @@ const quarBadge = h('span', { class: 'count', style: { display: 'none' } });
 links.response.append(quarBadge);
 
 function route() {
-  const id = (location.hash.match(/^#\/(\w+)/) || [])[1] || 'overview';
+  const id = (location.hash.match(/^#\/(\w+)/) || [])[1] || 'home';
   const entry = PAGES.find((p) => p[0] === id) || PAGES[0];
   Object.entries(links).forEach(([k, a]) => a.classList.toggle('active', k === entry[0]));
   unsub?.(); current?.destroy?.(); tipHide();

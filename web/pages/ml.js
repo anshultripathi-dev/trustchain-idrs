@@ -13,7 +13,7 @@ export default function ml(root) {
     h('button', { class: 'btn', onclick: () => act('Retraining started', () => api.post('/api/ml/retrain', {}, { admin: true })).then(poll) }, icon('brain', 14), 'Retrain models')),
     h('div', { class: 'note warn', style: { marginBottom: '14px' } }, h('b', null, 'Honest scope: '), 'all numbers below come from the built-in traffic simulator (synthetic, with benign bursts and a diurnal pattern). They show how the methods compare under the same assumptions, not accuracy on a real household. Collect real telemetry and retrain before drawing real-world conclusions.'), jobEl,
     card('Detector comparison on held-out simulated traffic', cmpEl), h('div', { class: 'grid g2', style: { marginTop: '14px' } }, card('Attack-class classifier', clsEl), card('Isolation-Forest anomaly scores', histEl)),
-    h('div', { class: 'grid g-main', style: { marginTop: '14px' } }, card('Adaptive baseline', h('div', null, baseChart.root, h('div', { class: 'legend' }, h('span', null, h('i', { style: { background: 'var(--s1)' } }), 'Learned expectation ±2σ'), h('span', null, h('i', { style: { background: 'var(--s2)' } }), 'Live observations'))), devSel), card('Live model output', liveEl)),
+    h('div', { class: 'grid g-main', style: { marginTop: '14px' } }, card('Adaptive baseline', h('div', null, baseChart.root, h('div', { class: 'legend' }, h('span', null, h('i', { style: { background: 'var(--s1)' } }), 'Learned expectation ±2σ'), h('span', null, h('i', { style: { background: 'var(--s2)' } }), 'Live observations'))), devSel), card('Live model output', liveEl, h('span', { class: 'faint small' }, '10 most anomalous'))),
     h('div', { style: { marginTop: '14px' } }, card('Attack-scenario evaluation (end-to-end, headless)', evalEl, h('button', { class: 'btn sm', onclick: () => act('Evaluation started', () => api.post('/api/evaluation/run', { trials: 3 }, { admin: true })).then(poll) }, icon('play', 12), 'Run evaluation'))));
 
   async function load() {
@@ -59,14 +59,15 @@ export default function ml(root) {
   function renderEval() {
     const e = data.evaluation;
     clear(evalEl, e ? h('div', { class: 'stack' },
-      h('div', { class: 'row small muted' }, `${e.trials} trial(s) per scenario · virtual clock · ${e.seconds}s · clean run: ${e.clean.false_events} false event(s) in ${e.clean.device_ticks} device-ticks (≈${e.clean.sim_days} simulated days, ${e.clean.false_quarantines} false quarantines)`),
+      h('div', { class: 'row small muted' }, `${e.trials} trial(s) per scenario on the 5 original devices · virtual clock · clean run: ${e.clean.false_events} false event(s) in ${e.clean.device_ticks.toLocaleString()} device-ticks (≈${e.clean.sim_days} simulated days, ${e.clean.false_quarantines} false quarantines)`),
+      e.home_clean && h('div', { class: 'note' }, h('b', null, 'Full smart home, clean traffic: '), `${e.home_clean.devices} devices · ${e.home_clean.device_ticks.toLocaleString()} device-ticks (≈${e.home_clean.sim_days} simulated days) → ${e.home_clean.events} low-severity alerts (${e.home_clean.events_per_sim_day} per day for the whole home), ${e.home_clean.false_quarantines} false quarantines.`),
       h('div', { class: 'scroll' }, h('table', null, h('thead', null, h('tr', null, ['Scenario', 'Layer', 'Detected', 'Classified', 'Latency (ticks)', 'Quarantined'].map((x) => h('th', null, x)))),
         h('tbody', null, Object.entries(e.scenarios).map(([k, v]) => h('tr', null, h('td', null, v.label), h('td', null, v.layer), h('td', { class: 'num' }, fmt.pct(v.detection_rate)), h('td', { class: 'num' }, fmt.pct(v.classification_rate)), h('td', { class: 'num' }, v.mean_latency_ticks ?? '–'), h('td', { class: 'num' }, fmt.pct(v.quarantine_rate))))))),
       h('div', { class: 'row' }, Object.entries(e.tamper).map(([k, v]) => h('span', { class: 'badge b-OK' }, icon('check'), `${fmt.type(k)}: detected ${fmt.pct(v.detection_rate)}`))),
       h('div', { class: 'note' }, 'Replay and spoofing are rejected at the gateway without quarantining the victim device on purpose: an outsider must not be able to knock a legitimate device offline by forging its traffic. Only rogue (unregistered) devices and persistent/escalating attacks lead to quarantine.')) : empty('Not run yet. Click “Run evaluation” (≈1–2 min).'));
   }
   function renderLive() {
-    const rows = Object.entries(data.live);
+    const rows = Object.entries(data.live).sort((a, b) => a[1].ml.if_score - b[1].ml.if_score).slice(0, 10);
     clear(liveEl, rows.length ? h('div', { class: 'scroll' }, h('table', null, h('thead', null, h('tr', null, ['Device', 'IF score', 'Class', 'Conf.', 'req z'].map((x) => h('th', null, x)))),
       h('tbody', null, rows.map(([id, v]) => h('tr', null, h('td', null, v.name), h('td', { class: 'num' }, fmt.n(v.ml.if_score, 3), v.ml.if_anomaly ? ' ⚠' : ''), h('td', null, fmt.type(v.ml.cls)), h('td', { class: 'num' }, fmt.pct(v.ml.cls_conf)), h('td', { class: 'num' }, fmt.n(v.baseline.req_z, 1))))))) : empty('Waiting for telemetry…'));
   }

@@ -1,21 +1,22 @@
 import { h, clear, icon, badge, fmt, store, bandColor, seriesColor } from '../js/core.js';
 import { LineChart } from '../js/charts.js';
-import { pageHeader, card, kpi, feedItem, deviceCard, nodePanel, trustColor } from '../js/shared.js';
+import { pageHeader, card, kpi, feedItem, nodePanel } from '../js/shared.js';
+import { money } from './home.js';
 
 export default function overview(root) {
   const kpis = h('div', { class: 'grid kpis' });
-  const chart = new LineChart({ height: 250, yMin: 0, yMax: 1, yFmt: (v) => v.toFixed(2), xFmt: (v) => fmt.time(v), label: 'Risk by device',
+  const chart = new LineChart({ height: 250, yMin: 0, yMax: 1, yFmt: (v) => v.toFixed(2), xFmt: (v) => fmt.time(v), label: 'Risk of the six highest-risk devices',
     bands: [{ from: 0.92, to: 1, color: 'var(--crit)' }, { from: 0.5, to: 0.92, color: 'var(--serious)' }, { from: 0.25, to: 0.5, color: 'var(--warn)' }],
     refs: [{ y: 0.25, label: 'suspicious' }, { y: 0.5, label: 'high' }, { y: 0.92, label: 'critical' }] });
   const legend = h('div', { class: 'legend' });
-  const node = h('div'), devs = h('div', { class: 'grid g3' }), feed = h('div', { class: 'feed' }), flow = h('div', { class: 'flow' });
+  const node = h('div'), roomsEl = h('div', { class: 'rooms-strip' }), feed = h('div', { class: 'feed' }), flow = h('div', { class: 'flow' });
   const banner = h('div');
   root.append(pageHeader('Security overview', 'Live state of the closed loop: signed telemetry → detection → trust → ledger → response.'), banner, kpis,
     h('div', { class: 'grid g-main', style: { marginTop: '14px' } },
-      card('Risk by device', h('div', null, chart.root, legend), h('span', { class: 'faint small' }, 'bounded 0–1 · last 90 s')),
+      card('Risk — six highest-risk devices', h('div', null, chart.root, legend), h('span', { class: 'faint small' }, 'bounded 0–1 · last 40 s')),
       card('Physical response', node)),
     h('div', { style: { margin: '14px 0' } }, card('Closed-loop pipeline', flow)),
-    h('div', { class: 'grid g-main' }, card('Devices', devs), card('Activity', feed)));
+    h('div', { class: 'grid g-main' }, card('Rooms', roomsEl, h('a', { href: '#/home', class: 'small' }, 'Open Smart Home →')), card('Activity', feed)));
 
   function update(d) {
     const k = d.kpis;
@@ -26,26 +27,38 @@ export default function overview(root) {
     }
     clear(kpis,
       kpi('Threat level', badge(d.threat_level), `${d.devices.filter((x) => x.status === 'ACTIVE').length} active · ${k.quarantined} quarantined`, 'shield'),
-      kpi('Average trust', fmt.n(k.avg_trust, 0), 'across registered devices', 'check'),
+      kpi('Average trust', fmt.n(k.avg_trust, 0), `across ${d.devices.length} devices`, 'check'),
       kpi('Security events', k.events, `${k.crypto_rejects} signature/replay rejects`, 'alert'),
       kpi('Ledger', `#${k.chain_height}`, h('span', { class: 'row' }, badge(k.ledger_consistent ? 'OK' : 'TAMPERING_DETECTED', k.ledger_consistent ? 'validators agree' : 'validators disagree')), 'chain'),
-      kpi('Log integrity', badge(k.integrity_status === 'TAMPERING_DETECTED' ? 'TAMPERING_DETECTED' : 'OK', k.integrity_status === 'TAMPERING_DETECTED' ? 'tampering' : fmt.type(k.integrity_status || 'pending')), 'local log vs ledger hashes', 'db'));
-    // chart
-    const series = d.devices.map((dev, i) => ({ label: dev.name, color: seriesColor(i), points: dev.series.slice(-90).map((p) => ({ x: p.t, y: p.risk })) }));
-    chart.setData(series);
-    clear(legend, d.devices.map((dev, i) => h('span', null, h('i', { style: { background: seriesColor(i) } }), dev.name)));
+      kpi('Log integrity', badge(k.integrity_status === 'TAMPERING_DETECTED' ? 'TAMPERING_DETECTED' : 'OK', k.integrity_status === 'TAMPERING_DETECTED' ? 'tampering' : fmt.type(k.integrity_status || 'pending')), 'local log vs ledger hashes', 'db'),
+      kpi('Equipment value', money(d.home?.value_usd), `${money(d.home?.value_quarantined_usd)} quarantined`, 'home'));
+    // chart: only the six highest-risk devices; colour is tied to the device, not its rank
+    const top = [...d.devices].sort((a, b) => b.risk - a.risk).slice(0, 6);
+    // a device keeps its own colour slot; only if two shown devices collide does the later one take the next free slot
+    const used = new Set(), color = new Map();
+    for (const dev of top.slice().sort((a, b) => d.devices.indexOf(a) - d.devices.indexOf(b))) {
+      let slot = d.devices.indexOf(dev) % 8;
+      while (used.has(slot)) slot = (slot + 1) % 8;
+      used.add(slot); color.set(dev.id, seriesColor(slot));
+    }
+    chart.setData(top.map((dev) => ({ label: dev.name, color: color.get(dev.id), points: dev.series.slice(-40).map((p) => ({ x: p.t, y: p.risk })) })));
+    clear(legend, top.map((dev) => h('span', null, h('i', { style: { background: color.get(dev.id) } }), dev.name)));
     clear(node, nodePanel(d.physical),
       d.blocklist.length ? h('div', { class: 'small muted', style: { marginTop: '10px' } }, 'Gateway blocklist: ', d.blocklist.map((b) => b.source).join(', ')) : null);
-    clear(devs, [...d.devices, ...d.unknown_devices.map((u) => ({ ...u, series: [], sample: {}, band: 'CRITICAL', risk: 0, primary_name: '' }))].map((dev) => deviceCard(dev, { onclick: () => { location.hash = '#/devices/' + encodeURIComponent(dev.id); } })));
+    clear(roomsEl, (d.rooms || []).map((r) => {
+      const worst = r.quarantined ? 'CRITICAL' : r.worst_band;
+      return h('a', { class: `rchip s-${worst}`, href: '#/home', title: `${r.name}: ${r.count} devices` },
+        h('div', { class: 'rn' }, h('span', { 'aria-hidden': 'true' }, r.icon), r.name), h('small', null, `${r.count} devices · ${money(r.value_usd)}`),
+        r.quarantined ? badge('QUARANTINED', `${r.quarantined} quarantined`) : r.attacks ? badge('HIGH', 'under attack') : badge(r.worst_band, r.worst_band === 'SAFE' ? 'all OK' : fmt.type(r.worst_band)));
+    }));
     clear(feed, store.feed.slice(0, 40).map((f) => feedItem(f)), store.feed.length ? null : h('div', { class: 'empty' }, 'Quiet. Launch a scenario from the Attack Lab.'));
-    // pipeline
     const hot = new Set(store.feed.filter((f) => d.now - f.ts < 6).map((f) => f.kind));
     const stage = (name, val, sub, on) => h('div', { class: `stage${on ? ' hot' : ''}` }, h('b', null, name), h('div', { class: 'v num' }, val), h('div', { class: 'small muted' }, sub));
     const arrow = () => h('div', { class: 'arrow', 'aria-hidden': 'true' }, '→');
     const nq = d.kpis.quarantined;
     clear(flow,
       stage('Signed devices', d.devices.length, 'ECDSA-P256 · nonce + timestamp', false), arrow(),
-      stage('Gateway verify', k.messages, `${k.crypto_rejects} rejected · ${k.dropped_blocked} dropped`, hot.has('BLOCK')), arrow(),
+      stage('Gateway verify', k.messages.toLocaleString(), `${k.crypto_rejects} rejected · ${k.dropped_blocked} dropped`, hot.has('BLOCK')), arrow(),
       stage('Detection', 'rules + ML', 'adaptive baseline · IF · classifier', hot.has('EVENT')), arrow(),
       stage('Trust & risk', fmt.n(k.avg_trust, 0), 'avg trust · bounded risk', hot.has('EVENT')), arrow(),
       stage('Ledger', `#${k.chain_height}`, `${d.ledger.nodes.length} validators · quorum ${d.ledger.quorum}`, hot.has('INTEGRITY') || hot.has('EVENT')), arrow(),

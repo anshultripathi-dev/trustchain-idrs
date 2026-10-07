@@ -16,7 +16,8 @@ export default function lab(root) {
 
   async function load() {
     cat = await api.get('/api/attacks'); devs = cat.devices; target = target || devs[0].id;
-    devSel.replaceChildren(...devs.map((d) => h('option', { value: d.id }, d.name)));
+    const rooms = cat.rooms || [];
+    devSel.replaceChildren(...(rooms.length ? rooms.map((r) => h('optgroup', { label: `${r.icon} ${r.name}` }, devs.filter((d) => d.room === r.id).map((d) => h('option', { value: d.id }, `${d.icon} ${d.name}${d.real ? ' (real)' : ''}`)))) : devs.map((d) => h('option', { value: d.id }, d.name))));
     renderCards(); renderTamper(); renderClock(); renderLists(cat.active, cat.log);
   }
   function renderCards() {

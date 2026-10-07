@@ -40,7 +40,7 @@ export default function response(root) {
     if (!last) return;
     const all = [...last.devices, ...last.unknown_devices];
     const by = (s) => all.filter((d) => d.status === s);
-    const col = (title, cls, list, desc) => h('div', { class: `state ${cls}` }, h('b', null, title), h('div', { class: 'small muted' }, desc), h('div', { style: { marginTop: '6px' } }, list.length ? list.map((d) => h('div', { class: 'small' }, '• ' + d.name)) : h('span', { class: 'faint small' }, '— none —')));
+    const col = (title, cls, list, desc) => h('div', { class: `state ${cls}` }, h('b', null, title), h('div', { class: 'small muted' }, desc), h('div', { style: { marginTop: '6px' } }, list.length ? [...list.slice(0, 5).map((d) => h('div', { class: 'small' }, '• ' + d.name)), list.length > 5 && h('div', { class: 'small faint' }, `+ ${list.length - 5} more`)] : h('span', { class: 'faint small' }, '— none —')));
     clear(flow, h('div', { class: 'sm-flow' }, col('ACTIVE', 'act', by('ACTIVE'), 'trusted · normal operation'), h('span', null, '→ trust < 20 or CRITICAL →'),
       col('QUARANTINED', 'q', by('QUARANTINED'), 'commands blocked · alarm on'), h('span', null, '→ checks pass →'), col('RECOVERY PENDING', 'p', by('RECOVERY_PENDING'), 'awaiting admin approval'), h('span', null, '→ admin approves →'), h('span', { class: 'badge b-ACTIVE' }, icon('check'), 'ACTIVE (trust 60)')),
       h('div', { class: 'note', style: { marginTop: '12px' } }, 'No automatic exit: a quarantined device only returns after a security verification and an explicit, separately-logged administrator approval. Both steps are ledger transactions.'));

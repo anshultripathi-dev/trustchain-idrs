@@ -20,13 +20,13 @@ export function deviceCard(d, { selected, onclick } = {}) {
   const q = d.status !== 'ACTIVE';
   const risk = d.series.map((p) => p.risk);
   return h('div', { class: `card dev${selected ? ' sel' : ''}${q ? ' q' : ''}`, onclick, tabindex: 0, role: 'button', onkeydown: (e) => { if (e.key === 'Enter') onclick?.(); } },
-    h('div', { class: 'row spread' }, h('div', null, h('div', { class: 'nm' }, d.name), h('div', { class: 'id mono' }, fmt.name(d.id))), ring(d.trust, { color: trustColor(d.trust), label: 'trust' })),
-    h('div', { class: 'row' }, badge(d.status), badge(d.band, `risk ${d.band}`), d.real_hardware && h('span', { class: 'badge' }, 'real ESP32'), d.ml_mode === 'shadow' && h('span', { class: 'badge', title: 'Models were trained on simulated devices. On real hardware the ML layer only observes; rules raise events.' }, 'ML: shadow'), d.attack && h('span', { class: 'badge b-HIGH' }, icon('bolt'), 'under attack')),
+    h('div', { class: 'row spread' }, h('div', null, h('div', { class: 'nm' }, d.icon ? `${d.icon} ${d.name}` : d.name), h('div', { class: 'id' }, d.room_name ? `${d.room_name} · ${fmt.name(d.id)}` : fmt.name(d.id))), ring(d.trust, { color: trustColor(d.trust), label: 'trust', size: 56 })),
+    h('div', { class: 'row' }, badge(d.status), badge(d.band, `risk ${d.band}`), d.critical && h('span', { class: 'badge', title: 'Safety-critical' }, '★'), d.real_hardware && h('span', { class: 'badge' }, 'real ESP32'), d.ml_mode === 'shadow' && h('span', { class: 'badge', title: 'Models were trained on simulated devices. On real hardware the ML layer only observes; rules raise events.' }, 'ML: shadow'), d.attack && h('span', { class: 'badge b-HIGH' }, icon('bolt'), 'under attack')),
     h('div', { class: 'metrics' },
       h('div', null, h('b', { class: 'num' }, fmt.n(d.sample?.req_rate)), h('span', null, 'req/s')),
-      h('div', null, h('b', { class: 'num' }, fmt.n(d.sample?.primary)), h('span', null, d.primary_name)),
+      h('div', null, h('b', { class: 'num' }, fmt.n(d.sample?.primary)), h('span', null, (d.primary_name || '').replaceAll('_', ' '))),
       h('div', null, h('b', { class: 'num' }, fmt.n(d.risk, 2)), h('span', null, 'risk'))),
-    h('div', { class: 'row spread small faint' }, h('span', null, 'risk · last 60s'), sparkline(risk, { w: 150, min: 0, max: 1, color: bandColor[d.band] })));
+    h('div', { class: 'row spread small faint' }, h('span', null, 'risk · last 40 s'), sparkline(risk, { w: 150, min: 0, max: 1, color: bandColor[d.band] })));
 }
 
 export function nodePanel(p) {
