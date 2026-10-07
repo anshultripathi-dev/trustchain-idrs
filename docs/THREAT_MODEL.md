@@ -31,6 +31,11 @@
 | Ledger copy tampering | Hash links, proposer + quorum signatures against genesis keys, cross-node comparison; faulty node excluded and healed | `test_ledger.py` (incl. re-hash attack) |
 | Unsafe automated response | Lock is fail-secure; recovery is administrator-gated and logged | `test_quarantine_blocks_commands_*` |
 | Unauthorised admin actions | Admin token on every state-changing endpoint; localhost bind by default | `test_admin_endpoints_require_token` |
+| Remote start of a hazardous appliance (oven, water heater, EV charger) | Quarantine blocks remote start; a remote OFF / stop is still honoured (`fail-safe-off`) | `test_attack_on_oven_quarantines_it_but_remote_off_still_works` |
+| Garage door / lock opened remotely while compromised | `fail-secure`: remote open / unlock blocked, close / lock still honoured | `test_quarantined_garage_door_may_close_but_not_open` |
+| Quarantine used to disrupt essential service (food, connectivity, alarms) | `keep-running`: the service is never interrupted, only remote control is blocked | `test_quarantined_fridge_keeps_running` |
+| Sensor spoofing that mimics normal values (e.g. fridge temperature) | Per-device, per-hour baseline + ML; no static rule needed | `test_fridge_sensor_tampering_is_caught_without_any_static_rule` |
+| Alert fatigue / self-inflicted outages from noisy ML | Weak evidence is capped at an alert; risk reflects confirmed evidence only | `test_weak_unexplained_evidence_never_escalates_to_quarantine` |
 
 ## Residual risks and limitations
 

@@ -34,7 +34,7 @@
       "layer": "traffic",
       "detection_rate": 1.0,
       "classification_rate": 1.0,
-      "mean_latency_ticks": 1.0,
+      "mean_latency_ticks": 1.67,
       "quarantine_rate": 1.0,
       "ledger_consistent": true
     },
@@ -93,6 +93,19 @@
     "false_quarantines": 0,
     "sim_days": 4.17
   },
-  "seconds": 284.1,
-  "finished_at": 1791224492.329519
+  "home_clean": {
+    "devices": 38,
+    "device_ticks": 196992,
+    "sim_days": 18.0,
+    "events": 14,
+    "events_per_sim_day": 0.78,
+    "by_severity": {
+      "MEDIUM": 11,
+      "LOW": 2,
+      "HIGH": 1
+    },
+    "false_quarantines": 0
+  },
+  "seconds": 3708.6,
+  "finished_at": 1791378711.326352
 }

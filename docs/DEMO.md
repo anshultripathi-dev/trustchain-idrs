@@ -7,8 +7,14 @@ Start the system (`make run`), open <http://127.0.0.1:8000>, and use the admin t
 
 ## Simulated walkthrough
 
+Start on the **Smart Home** page: 38 devices in 10 rooms, all green. Filter by category, click a tile to open the device drawer
+(identity, value, telemetry, its quarantine policy, and controls that go through the gateway). Then switch to **Attack lab** and pick
+targets by room.
+
 | # | Do this | Watch for |
 |---|---|---|
+| 0 | **Attack lab → Request flood** on the *Smart Oven* (Kitchen); then open the oven on the Smart Home page | The oven tile turns red and *Quarantined*; its drawer shows **FAIL-SAFE** — `preheat` is **blocked**, `off` is still **allowed**. Try the same on the *Smart Refrigerator*: its policy is **KEEP-RUNNING**. |
+| 0b | **Attack lab → Sensor manipulation** on the *Smart Refrigerator* | A spoofed compartment temperature (food-spoilage attack) is caught with no static rule at all. |
 | 1 | **Attack lab → Brute-force PIN** on ESP-1 | Risk spikes on *Overview*; first event is **HIGH** (source blocked, trust ↓); the repeat is escalated to **CRITICAL** by attack memory → ESP-1 is **quarantined** and the simulated ESP-2 lights red and buzzes. The lock stays fail-secure. |
 | 2 | **Threats** → open the newest event | Local record and on-chain hash side by side → **ledger verified**. |
 | 3 | **Attack lab → Edit latest event in local DB**, then **Run integrity check** | Hash **MISMATCH**, an `AUDIT_TAMPERING` event, trust penalty. *Repair record from ledger* restores it. |

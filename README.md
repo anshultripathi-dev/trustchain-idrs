@@ -13,21 +13,27 @@ a per-device trust score drives quarantine, and a permissioned hash-chain ledger
 security log **tamper-evident** — with ledger integrity feeding back into trust.
 
 <p align="center">
-  <img src="docs/images/01-overview.png" alt="TrustChain-IDRS dashboard during a simulated multi-device incident" width="920">
+  <img src="docs/images/17-smart-home.png" alt="Smart Home page: 38 devices in 10 rooms during a simulated incident" width="920">
 </p>
 
-> The screenshot shows the dashboard mid-incident (simulated): three devices quarantined, the physical
-> alarm active on ESP-2, three sources on the gateway blocklist, all validators in agreement.
+> The Smart Home page during a simulated incident: a fully equipped home of 38 devices in 10 rooms, with the
+> oven, refrigerator, door lock and router quarantined while everything else stays online and trusted.
 
 ---
 
 ## Highlights
 
+- **A full smart home.** 38 devices in 10 rooms — living room, kitchen, bathroom, bedroom, garage, garden and more —
+  about $44,700 of equipment: OLED TV, smart fridge and oven, water heater, home battery, solar inverter, EV charger,
+  cameras, door lock, garage door ... Each has an identity, a value, a safety class and its own quarantine policy
+  (see [`docs/SMART_HOME.md`](docs/SMART_HOME.md)).
+- **Quarantine that knows what "safe" means.** Isolating an oven must still allow a remote OFF; isolating a fridge must
+  never stop the cooling; isolating a lock must never lock anyone in or out. Hazard-reducing commands stay honoured.
 - **Signed telemetry.** Every message carries an ECDSA-P256 signature, a timestamp and a single-use
   nonce. The gateway rejects unknown devices, forged signatures, stale timestamps and replays.
 - **Hybrid detection.** Static rules, a per-device **per-hour adaptive baseline**, an Isolation Forest
-  and a Random-Forest attack classifier. On held-out simulated traffic, static thresholds alone
-  reach 64 % macro recall; the hybrid reaches 100 % at a 0.03 % confirmed false-positive rate.
+  and a Random-Forest attack classifier. On held-out simulated traffic across 16 device archetypes, static thresholds
+  alone reach 61 % macro recall; the hybrid reaches 99 % at a 0.01 % confirmed false-positive rate.
 - **Trust and risk.** A bounded 0–1 risk value (noisy-OR of five signals) and a 0–100 trust score per
   device; attack memory escalates repeat offenders.
 - **Permissioned ledger.** SHA-256 hash-chained, ECDSA-signed blocks replicated across three
@@ -40,8 +46,8 @@ security log **tamper-evident** — with ledger integrity feeding back into trus
   actuates by itself.
 - **Real hardware.** Works with the original ESP32 firmware unchanged (`/security/status`, `/alert`,
   `/safe`, `/status`). A full simulation mode needs no hardware at all.
-- **Seven-page dashboard.** Overview, devices and trust, threats and attack memory, ledger explorer,
-  response and recovery, ML lab, attack lab. Offline-capable, light and dark themes.
+- **Eight-page dashboard.** Smart home (rooms and devices), security overview, devices and trust, threats and
+  attack memory, ledger explorer, response and recovery, ML lab, attack lab. Offline-capable, light and dark themes.
 
 ## How it works
 
@@ -71,7 +77,8 @@ make setup          # creates .venv and installs requirements
 make run            # → http://127.0.0.1:8000
 ```
 
-The ML models train automatically on first start (~30 s) or on demand with `make train`.
+The ML models train automatically on first start (~30 s) or on demand with `make train`; they are retrained
+automatically if the device profiles change. `TRUSTCHAIN_HOME=core` runs only the five original devices.
 Without `make`: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt && .venv/bin/python run.py`.
 
 Admin actions (launch simulated attacks, quarantine, approve recovery, heal a node) ask for a token;
@@ -97,6 +104,7 @@ and details: [`docs/HARDWARE.md`](docs/HARDWARE.md).
 
 | | |
 |---|---|
+| ![Smart home](docs/images/17-smart-home.png)<br/>**Smart home** — every room and device, live status | ![Device drawer](docs/images/18-device-drawer.png)<br/>**Device drawer** — value, fail-safe policy, gateway-checked controls |
 | ![Devices](docs/images/02-devices.png)<br/>**Devices and trust** — telemetry, risk, ledger-derived trust | ![Ledger](docs/images/04-ledger-tampered-node.png)<br/>**Ledger explorer** — a tampered validator fails audit |
 | ![Evidence](docs/images/06-tamper-evidence.png)<br/>**Tamper evidence** — local record vs on-chain hash | ![Response](docs/images/07-response-recovery.png)<br/>**Response and recovery** — state machine, alarm, blocklist |
 | ![Threats](docs/images/05-threats.png)<br/>**Threats and attack memory** | ![Lab](docs/images/08-attack-lab.png)<br/>**Attack lab** — eight scenarios, tamper controls |
@@ -110,13 +118,16 @@ reproducible with `make evaluate`. Details and caveats: [`docs/EVALUATION.md`](d
 
 | Detector (held-out simulated episodes) | Macro recall | False positives (2-tick confirm) |
 |---|---|---|
-| Static rules (original IDS) | 64.0 % | 0.01 % |
-| Isolation Forest only | 91.3 % | 0.02 % |
-| **Hybrid: rules + IF + classifier** | **100 %** | **0.03 %** |
+| Static rules (original IDS) | 61.4 % | 0.005 % |
+| Isolation Forest only | 86.0 % | 0.000 % |
+| **Hybrid: rules + IF + classifier** | **99.3 %** | **0.011 %** |
 
 End-to-end (3 trials per scenario, fresh systems, virtual clock): all 8 attack scenarios and both
-tamper scenarios detected in every trial, mean detection latency 1–2 ticks, and 1 false event in 6,000
-clean device-ticks (≈ 4 simulated days) with no false quarantines.
+tamper scenarios detected and correctly classified in every trial, mean detection latency 1–2 ticks.
+
+**Full smart home, clean traffic:** across all 38 devices for ≈ 18 simulated days (197,000 device-ticks) the
+system raised 14 low-severity alerts (0.8 per day for the whole home) and **no false quarantines**. Weak,
+unexplained evidence can alert but never escalate to blocking or quarantine on its own.
 
 ## Repository layout
 
@@ -133,12 +144,14 @@ trustchain/
   integrity.py         ledger-integrity checker (feeds trust)
   response.py          command policy, blocklist, lock fail-secure rules
   hardware.py          ESP32 adapters (legacy telemetry poller, response node, simulated node)
+  sim/home.py          the smart home: 10 rooms, 38 devices, values, categories, fail modes
+  sim/profiles.py      16 traffic archetypes and the attack generators
   engine.py            the closed loop, quarantine state machine, attack simulation
   evaluation.py        headless scenario evaluation
   api.py               FastAPI REST + WebSocket
 web/                   dashboard (no-build ES modules, SVG charts)
 firmware/              ESP32 sketches (esp1 smart-home node, esp2 security node)
-tests/                 32 tests: ledger, engine, API, hardware adapters
+tests/                 44 tests: ledger, closed loop, full smart home, API, hardware adapters
 scripts/               train_models.py, evaluate.py
 docs/                  architecture, hardware, demo, evaluation, threat model, images, proposals
 ```
@@ -147,6 +160,7 @@ docs/                  architecture, hardware, demo, evaluation, threat model, i
 
 | Document | Contents |
 |---|---|
+| [`docs/SMART_HOME.md`](docs/SMART_HOME.md) | The 38-device home: rooms, values, safety classes, per-device quarantine policy |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Layers, message format, ledger, detection, trust, state machine, diagrams |
 | [`docs/HARDWARE.md`](docs/HARDWARE.md) | Bill of materials, wiring, endpoints, flashing, hybrid mode |
 | [`docs/DEMO.md`](docs/DEMO.md) | A three-minute guided demonstration, simulated and on real hardware |
@@ -157,7 +171,7 @@ docs/                  architecture, hardware, demo, evaluation, threat model, i
 ## Development
 
 ```bash
-make test           # 32 tests, hermetic (forces simulation mode regardless of .env)
+make test           # 44 tests, hermetic (simulation mode and the 5-device home regardless of .env)
 make evaluate       # full attack-scenario evaluation (~5 min), writes data/evaluation.json
 make check-js       # syntax-check the dashboard modules
 ```

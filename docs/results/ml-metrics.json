@@ -1,7 +1,26 @@
 {
-  "trained_at": 1791225413.754761,
+  "trained_at": 1791374690.093642,
+  "profiles_sig": "3d9e289c1084",
+  "profile_kinds": [
+    "appliance",
+    "bulb",
+    "camera",
+    "climate",
+    "door_sensor",
+    "energy",
+    "fan",
+    "fridge",
+    "media",
+    "motor",
+    "network",
+    "oven",
+    "personal",
+    "safety_sensor",
+    "security_node",
+    "smart_home_node"
+  ],
   "data": "synthetic simulator traffic (not real household data)",
-  "seconds": 21.6,
+  "seconds": 31.7,
   "features": [
     "req_rate",
     "bad_req_rate",
@@ -11,18 +30,18 @@
     "req_z"
   ],
   "samples": {
-    "train_normal": 11520,
-    "train_attack": 5400,
-    "test_normal": 8640,
-    "test_attack": 8100
+    "train_normal": 22119,
+    "train_attack": 11520,
+    "test_normal": 18432,
+    "test_attack": 17280
   },
-  "if_threshold": -0.1273,
+  "if_threshold": -0.1382,
   "clf_confidence_threshold": 0.7,
   "comparison": {
     "static_rules": {
-      "false_positive_rate_tick": 0.00012,
-      "false_positive_rate_confirmed": 0.00012,
-      "episode_recall_macro": 0.64,
+      "false_positive_rate_tick": 5e-05,
+      "false_positive_rate_confirmed": 5e-05,
+      "episode_recall_macro": 0.6135,
       "per_attack": {
         "BRUTE_FORCE": {
           "tick_recall": 1.0,
@@ -40,9 +59,9 @@
           "mean_latency_ticks": 0.0
         },
         "SENSOR_ANOMALY": {
-          "tick_recall": 0.1062,
-          "episode_recall": 0.2,
-          "mean_latency_ticks": 0.61
+          "tick_recall": 0.0333,
+          "episode_recall": 0.0677,
+          "mean_latency_ticks": 1.31
         },
         "STEALTH_SURGE": {
           "tick_recall": 0.0,
@@ -52,9 +71,9 @@
       }
     },
     "isolation_forest": {
-      "false_positive_rate_tick": 0.00729,
-      "false_positive_rate_confirmed": 0.00023,
-      "episode_recall_macro": 0.9133,
+      "false_positive_rate_tick": 0.00157,
+      "false_positive_rate_confirmed": 0.0,
+      "episode_recall_macro": 0.8604,
       "per_attack": {
         "BRUTE_FORCE": {
           "tick_recall": 1.0,
@@ -72,9 +91,9 @@
           "mean_latency_ticks": 1.0
         },
         "SENSOR_ANOMALY": {
-          "tick_recall": 0.4043,
-          "episode_recall": 0.5667,
-          "mean_latency_ticks": 3.24
+          "tick_recall": 0.1707,
+          "episode_recall": 0.3021,
+          "mean_latency_ticks": 6.6
         },
         "STEALTH_SURGE": {
           "tick_recall": 1.0,
@@ -84,9 +103,9 @@
       }
     },
     "hybrid": {
-      "false_positive_rate_tick": 0.00775,
-      "false_positive_rate_confirmed": 0.00035,
-      "episode_recall_macro": 1.0,
+      "false_positive_rate_tick": 0.00857,
+      "false_positive_rate_confirmed": 0.00011,
+      "episode_recall_macro": 0.9927,
       "per_attack": {
         "BRUTE_FORCE": {
           "tick_recall": 1.0,
@@ -104,9 +123,9 @@
           "mean_latency_ticks": 0.0
         },
         "SENSOR_ANOMALY": {
-          "tick_recall": 0.9951,
-          "episode_recall": 1.0,
-          "mean_latency_ticks": 0.87
+          "tick_recall": 0.8634,
+          "episode_recall": 0.9635,
+          "mean_latency_ticks": 1.82
         },
         "STEALTH_SURGE": {
           "tick_recall": 1.0,
@@ -117,43 +136,43 @@
     }
   },
   "classifier": {
-    "accuracy": 0.9983,
+    "accuracy": 0.9814,
     "report": {
       "NORMAL": {
-        "precision": 0.9991,
-        "recall": 0.9977,
-        "f1-score": 0.9984,
-        "support": 8640.0
+        "precision": 0.9819,
+        "recall": 0.982,
+        "f1-score": 0.982,
+        "support": 18432.0
       },
       "BRUTE_FORCE": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 1620.0
+        "support": 3456.0
       },
       "REQUEST_FLOOD": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 1620.0
+        "support": 3456.0
       },
       "SERVICE_PROBING": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 1620.0
+        "support": 3456.0
       },
       "SENSOR_ANOMALY": {
-        "precision": 0.9877,
-        "recall": 0.9951,
-        "f1-score": 0.9914,
-        "support": 1620.0
+        "precision": 0.9041,
+        "recall": 0.9034,
+        "f1-score": 0.9037,
+        "support": 3456.0
       },
       "STEALTH_SURGE": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 1620.0
+        "support": 3456.0
       }
     },
     "labels": [
@@ -166,25 +185,17 @@
     ],
     "confusion": [
       [
-        8620,
+        18101,
         0,
         0,
         0,
-        20,
+        331,
         0
       ],
       [
         0,
-        1620,
+        3456,
         0,
-        0,
-        0,
-        0
-      ],
-      [
-        0,
-        0,
-        1620,
         0,
         0,
         0
@@ -192,64 +203,72 @@
       [
         0,
         0,
-        0,
-        1620,
-        0,
-        0
-      ],
-      [
-        8,
+        3456,
         0,
         0,
-        0,
-        1612,
         0
       ],
       [
         0,
         0,
         0,
+        3456,
+        0,
+        0
+      ],
+      [
+        334,
         0,
         0,
-        1620
+        0,
+        3122,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        3456
       ]
     ],
     "importances": {
-      "req_rate": 0.1915,
-      "bad_req_rate": 0.1587,
-      "failed_auth": 0.1513,
-      "endpoints_hit": 0.1999,
-      "primary_z": 0.1802,
-      "req_z": 0.1183
+      "req_rate": 0.2085,
+      "bad_req_rate": 0.1717,
+      "failed_auth": 0.1539,
+      "endpoints_hit": 0.1864,
+      "primary_z": 0.1318,
+      "req_z": 0.1477
     }
   },
   "score_hist": {
     "edges": [
-      -0.3071,
-      -0.2898,
-      -0.2724,
-      -0.2551,
-      -0.2377,
-      -0.2203,
-      -0.203,
-      -0.1856,
-      -0.1683,
-      -0.1509,
-      -0.1335,
-      -0.1162,
-      -0.0988,
-      -0.0815,
-      -0.0641,
-      -0.0467,
-      -0.0294,
-      -0.012,
-      0.0053,
-      0.0227,
-      0.0401,
-      0.0574,
-      0.0748,
-      0.0922,
-      0.1095
+      -0.31,
+      -0.2923,
+      -0.2746,
+      -0.2569,
+      -0.2393,
+      -0.2216,
+      -0.2039,
+      -0.1862,
+      -0.1685,
+      -0.1508,
+      -0.1331,
+      -0.1155,
+      -0.0978,
+      -0.0801,
+      -0.0624,
+      -0.0447,
+      -0.027,
+      -0.0093,
+      0.0083,
+      0.026,
+      0.0437,
+      0.0614,
+      0.0791,
+      0.0968,
+      0.1145
     ],
     "normal": [
       0,
@@ -258,51 +277,51 @@
       0,
       0,
       2,
-      5,
+      15,
       12,
-      11,
-      23,
-      38,
-      63,
-      64,
-      101,
-      182,
-      287,
-      391,
-      474,
-      548,
-      734,
-      1098,
-      1841,
-      2102,
-      664
+      21,
+      50,
+      96,
+      168,
+      219,
+      303,
+      499,
+      614,
+      817,
+      1038,
+      1257,
+      1606,
+      2432,
+      4070,
+      4151,
+      1062
     ],
     "attack": [
-      64,
-      786,
-      1010,
-      2401,
-      1522,
-      694,
-      206,
-      116,
-      133,
-      143,
-      173,
-      166,
-      300,
-      301,
-      84,
-      1,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0
+      213,
+      1228,
+      2229,
+      5141,
+      2853,
+      1745,
+      717,
+      286,
+      297,
+      382,
+      364,
+      448,
+      572,
+      291,
+      57,
+      44,
+      42,
+      48,
+      56,
+      63,
+      61,
+      89,
+      45,
+      9
     ],
-    "threshold": -0.1273
+    "threshold": -0.1382
   }
 }

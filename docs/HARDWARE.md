@@ -99,7 +99,8 @@ Then `make run` and open **Response & Recovery** → *Hardware connection*.
 - **ESP-2 is real.** The red LED, buzzer and LCD fire on quarantine and clear after an administrator releases the
   last quarantined device. If the board is unreachable when a command is sent, the engine re-sends it when the
   board is back (self-resync every few seconds).
-- **The other three devices stay simulated** (bulb, fan, door sensor).
+- **The rest of the smart home stays simulated**: the other 36 devices across all rooms (see [`SMART_HOME.md`](SMART_HOME.md)).
+  The two boards appear in the home as the *Entrance* door lock and the *Hallway* security node.
 - **The clock switches to real time.** ESP-1's behavioural baseline starts empty, so rules do the detecting at first.
 - **ML runs in shadow mode on real hardware.** The models were trained on simulator traffic and misread an
   idle real device as anomalous, so only rules raise events there. Set `TRUSTCHAIN_REAL_ML=1` to let ML act,

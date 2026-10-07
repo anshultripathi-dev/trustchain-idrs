@@ -198,3 +198,36 @@ Lessons from running against the physical boards, now part of the design:
 * **Network I/O is off the engine lock.** ESP-1 is polled and ESP-2 `/status` refreshed by background threads.
 * **Self-resync of ESP-2.** If the board disagrees with the system state (unreachable at command time, or left in
   alarm by an earlier run), the engine re-sends the right command.
+
+## 11. The smart-home model and per-device policy
+
+The home is a catalog of `DeviceSpec`s (`sim/home.py`): identity, room, category, value, safety class, **fail mode** and a traffic
+archetype. Details and the full device list: [`SMART_HOME.md`](SMART_HOME.md).
+
+```mermaid
+flowchart LR
+  C["Catalog<br/>38 devices · 10 rooms"] --> R["Registration<br/>one ledger block each"]
+  C --> P["Traffic archetype<br/>16 profiles"]
+  P --> B["Baseline warm-up<br/>per device, per hour"]
+  R --> G["Gateway<br/>signed telemetry"]
+  B --> G
+  G --> S["Batch ML scoring<br/>one inference per tick"]
+  S --> D["Decision<br/>risk · severity · trust"]
+  D --> Q{"Quarantine?"}
+  Q -- yes --> F["Fail-mode policy<br/>secure · safe-off · keep-running"]
+```
+
+* **Fail modes.** `fail-secure`, `fail-safe-off`, `keep-running`, `standard` define which commands still work on a quarantined
+  device. Hazard-reducing commands (`ALLOW_WHEN_QUARANTINED`: oven `off`, garage door `close`, EV charger `stop`, ...) are honoured so
+  isolating a device never leaves it stuck in a dangerous state; outbound commands from a quarantined device are always blocked.
+* **Batch scoring.** Each tick, every verified message is feature-extracted and all feature vectors go through the Isolation Forest and
+  the classifier in **one** call. A 38-device tick costs ≈ 15–20 ms instead of ≈ 0.6 s.
+* **Confirmed evidence only.** Risk includes the ML and baseline terms only once evidence is confirmed (a rule hit, or ML flagged on
+  consecutive ticks). A single noisy reading does not mark a healthy device "suspicious".
+* **Weak evidence cannot quarantine.** An event with no rule hit and risk < 0.5, or an unexplained `ML_BEHAVIOR_ANOMALY`, is capped at
+  MEDIUM severity (alert the user). Repetition cannot escalate it to blocking or quarantine; rule hits and strong multi-signal risk can.
+  Added after a long clean-traffic soak showed borderline anomalies could quarantine a healthy door lock via recurrence escalation.
+* **Isolation-Forest margin.** An anomaly must be at least 0.03 past the threshold, not merely borderline.
+* **Model/profile consistency.** Training stores a signature of the device-profile set; a model trained on a different set is retrained
+  automatically at start-up.
+* **Cached audit.** The full chain verification is O(blocks × validators); the dashboard reuses it for ~3 s or until the chain grows.
