@@ -41,3 +41,9 @@ def test_attack_flow_through_api(client):
 
 def test_unknown_attack_is_400(client):
     assert client.post("/api/attacks", json={"type": "NOPE"}, headers=H).status_code == 400
+
+
+def test_home_catalogue_endpoint(client):
+    r = client.get("/api/home").json()
+    assert r["totals"]["devices"] == 5 and {d["room"] for d in r["devices"]} <= {x["id"] for x in r["rooms"]}
+    assert "fail-safe-off" in r["fail_modes"]
