@@ -41,6 +41,7 @@ class Clock:
 @dataclass
 class Settings:
     mode: str = field(default_factory=lambda: os.getenv("TRUSTCHAIN_MODE", "sim"))
+    home: str = field(default_factory=lambda: os.getenv("TRUSTCHAIN_HOME", "full"))   # full smart home, or "core" = the 5 original devices
     host: str = field(default_factory=lambda: os.getenv("TRUSTCHAIN_HOST", "127.0.0.1"))
     port: int = field(default_factory=lambda: int(os.getenv("TRUSTCHAIN_PORT", "8000")))
     admin_token: str = field(default_factory=lambda: os.getenv("TRUSTCHAIN_ADMIN_TOKEN", "admin"))

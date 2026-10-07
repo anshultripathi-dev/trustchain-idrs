@@ -38,29 +38,54 @@ class Profile:
     primary_sd: float
     has_env: bool = False  # reports temperature/humidity
     rssi: float = -58.0
+    peak: float = 18.0     # hour of day with most activity
+    sharp: float = 1.0     # >1 = short, peaky usage (oven, washer); <1 = flatter
 
 
 PROFILES: dict[str, Profile] = {
+    # --- the original five (unchanged behaviour) ---
     "smart_home_node": Profile("smart_home_node", "ESP-1 Smart Home Node", 0.8, 4.5, "temperature", 24.0, 31.0, 0.5, True, -55),
     "security_node": Profile("security_node", "ESP-2 Security Node", 0.3, 1.6, "uptime_load", 8.0, 14.0, 0.8, False, -52),
     "bulb": Profile("bulb", "Smart Bulb", 0.2, 1.2, "power_w", 2.0, 9.0, 0.4, False, -63),
     "fan": Profile("fan", "Smart Fan", 0.2, 1.0, "rpm_pct", 10.0, 60.0, 3.0, False, -66),
     "door_sensor": Profile("door_sensor", "Door Sensor", 0.1, 0.9, "events_per_min", 0.2, 3.0, 0.3, False, -61),
+    # --- archetypes for the full smart home ---
+    "media": Profile("media", "Media device", 0.2, 3.0, "power_w", 6.0, 150.0, 5.0, False, -60, peak=21.0, sharp=2.0),
+    "appliance": Profile("appliance", "Cycle appliance", 0.1, 1.4, "power_w", 4.0, 900.0, 25.0, False, -64, peak=20.0, sharp=5.0),
+    "fridge": Profile("fridge", "Refrigerator", 0.5, 1.1, "compartment_c", 3.3, 4.4, 0.12, False, -58, peak=19.0, sharp=1.0),
+    "oven": Profile("oven", "Oven / cooktop", 0.1, 1.6, "cavity_c", 24.0, 185.0, 3.0, False, -60, peak=18.0, sharp=8.0),
+    "climate": Profile("climate", "Climate device", 0.3, 1.5, "temp_c", 19.5, 24.0, 0.25, False, -59, peak=15.0, sharp=1.2),
+    "camera": Profile("camera", "Camera", 0.8, 3.2, "motion_events", 0.4, 5.5, 0.6, False, -62, peak=22.0, sharp=1.5),
+    "network": Profile("network", "Network gear", 1.4, 3.6, "throughput_mbps", 6.0, 70.0, 4.0, False, -45, peak=20.0, sharp=1.2),
+    "energy": Profile("energy", "Energy device", 0.2, 1.0, "power_kw", 0.3, 4.4, 0.12, False, -57, peak=14.0, sharp=2.0),
+    "safety_sensor": Profile("safety_sensor", "Safety sensor", 0.1, 0.5, "reading", 0.02, 0.5, 0.04, False, -64, peak=12.0, sharp=0.6),
+    "motor": Profile("motor", "Motorised device", 0.1, 1.2, "current_a", 0.1, 2.4, 0.1, False, -63, peak=9.0, sharp=3.0),
+    "personal": Profile("personal", "Personal-care device", 0.2, 1.9, "activity_idx", 1.0, 18.0, 1.4, False, -61, peak=22.0, sharp=2.0),
 }
 
 
-def activity(hour: float) -> float:
-    """0..1 household activity; quietest ~06:00, busiest ~18:00."""
-    return 0.5 * (1 + math.cos(2 * math.pi * (hour - 18.0) / 24.0))
+def profiles_signature() -> str:
+    """Stable fingerprint of the profile set: models trained on another set are retrained automatically."""
+    import hashlib, json
+    from dataclasses import asdict
+    blob = json.dumps({k: asdict(v) for k, v in sorted(PROFILES.items())}, sort_keys=True)
+    return hashlib.sha256(blob.encode()).hexdigest()[:12]
+
+
+def activity(hour: float, peak: float = 18.0, sharp: float = 1.0) -> float:
+    """0..1 usage level; most active at `peak` (default 18:00), quietest 12 h away."""
+    return (0.5 * (1 + math.cos(2 * math.pi * (hour - peak) / 24.0))) ** sharp
 
 
 def normal_sample(p: Profile, hour: float, rng: np.random.Generator) -> dict[str, Any]:
-    a = activity(hour)
+    a = activity(hour, p.peak, p.sharp)
     req = p.req_lo + (p.req_hi - p.req_lo) * a
     req *= max(0.2, 1 + rng.normal(0, 0.12))
     if rng.random() < 0.01:                      # benign burst (user opens the app)
         req *= rng.uniform(1.6, 2.2)
     primary = p.primary_lo + (p.primary_hi - p.primary_lo) * a + rng.normal(0, p.primary_sd)
+    if p.primary_lo >= 0 and not p.has_env:        # power, current, counts ... cannot be negative
+        primary = max(0.0, primary)
     s: dict[str, Any] = {
         "req_rate": round(max(0.0, req), 3),
         "bad_req_rate": round(float(max(0.0, rng.normal(0.15, 0.2))), 3),
@@ -92,6 +117,8 @@ def apply_attack(sample: dict[str, Any], attack: str, p: Profile, hour: float, r
     elif attack == "SENSOR_ANOMALY":
         shift = rng.choice([-1, 1]) * rng.uniform(12, 26)
         s["primary"] = round(s["primary"] + shift, 3)
+        if p.primary_lo >= 0 and not p.has_env:
+            s["primary"] = max(0.0, s["primary"])
         if p.has_env:
             s["temperature"] = s["primary"]
             s["humidity"] = round(min(99.0, s["humidity"] + rng.uniform(5, 30)), 1)
@@ -99,7 +126,7 @@ def apply_attack(sample: dict[str, Any], attack: str, p: Profile, hour: float, r
     elif attack == "STEALTH_SURGE":
         # Stays below the static flood threshold (10 req/s) but is a many-sigma surge
         # relative to what this device normally does at this hour.
-        if activity(hour) < 0.35:   # quiet hours: a few req/s is already a huge deviation
+        if activity(hour, p.peak, p.sharp) < 0.35:   # quiet hours: a few req/s is already a huge deviation
             req = max(s["req_rate"] * rng.uniform(3.0, 4.5), rng.uniform(5.2, 7.5))
         else:
             req = s["req_rate"] * rng.uniform(1.9, 2.4) + 3.0
