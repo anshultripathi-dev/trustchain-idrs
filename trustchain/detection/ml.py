@@ -14,6 +14,7 @@ from .features import FEATURES
 CLASSES = ["NORMAL", "BRUTE_FORCE", "REQUEST_FLOOD", "SERVICE_PROBING", "SENSOR_ANOMALY", "STEALTH_SURGE"]
 CLF_CONFIDENCE = 0.7
 IF_RISK_SCALE = 0.10
+IF_MARGIN = 0.03      # an Isolation-Forest anomaly must be clearly past the threshold, not just borderline
 
 
 class ModelBundle:
@@ -35,7 +36,7 @@ class ModelBundle:
         for i in range(len(X)):
             j = int(np.argmax(proba[i]))
             cls = self.classes[j]
-            anomalous = bool(s[i] < self.threshold)
+            anomalous = bool(s[i] < self.threshold - IF_MARGIN)
             out.append({
                 "if_score": float(s[i]),
                 "if_anomaly": anomalous,

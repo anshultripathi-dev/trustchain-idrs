@@ -28,20 +28,39 @@ from .identity import DeviceIdentity, IdentityVerifier
 from .integrity import IntegrityChecker
 from .ledger.chain import LedgerError, LedgerNetwork, LedgerNode
 from .ledger.contract import ACTIVE, QUARANTINED, RECOVERY_PENDING, SEVERITIES, ContractError, SecurityContract, escalate
-from .response import COMMANDS, DEFAULT_MIN_TRUST, LOCK_POLICY, MIN_TRUST, Blocklist
+from .response import (ALLOW_WHEN_QUARANTINED, COMMANDS, DEFAULT_MIN_TRUST, LOCK_POLICY, MIN_TRUST, QUARANTINE_POLICY,
+                       Blocklist)
+from .sim.home import CATEGORIES, ROOMS, DeviceSpec, catalog
 from .sim.profiles import ATTACKS, PROFILES, Profile, apply_attack, attack_source, normal_sample
 from .store import LocalStore, event_hash
 from .trust import (BAND_SEVERITY, REGEN_PER_STEP, TrustTracker, band, baseline_deviation, penalty,
                     risk_score)
 
-DEVICES = [
-    ("did:trustchain:esp32:001", "ESP-1 Smart Home Node", "smart_home_node"),
-    ("did:trustchain:esp32:002", "ESP-2 Security Node", "security_node"),
-    ("did:trustchain:bulb:001", "Living-room Bulb", "bulb"),
-    ("did:trustchain:fan:001", "Bedroom Fan", "fan"),
-    ("did:trustchain:door:001", "Front-door Sensor", "door_sensor"),
-]
-SMART_HOME_ID = DEVICES[0][0]
+CORE_SPECS = catalog("core")
+DEVICES = [(d.id, d.name, d.kind) for d in CORE_SPECS]       # the five original devices
+SMART_HOME_ID = CORE_SPECS[0].id
+INITIAL_STATE = {
+    "smart_home_node": {"lock": "LOCKED", "led": "OFF"}, "security_node": {"alarm": "IDLE"}, "door_sensor": {"door": "CLOSED"},
+    "bulb": {"power": "ON"}, "fan": {"power": "OFF"}, "tv": {"power": "ON"}, "soundbar": {"power": "ON"},
+    "robot_vacuum": {"cycle": "DOCKED"}, "blinds": {"position": "OPEN"}, "air_purifier": {"power": "ON"},
+    "fridge": {"mode": "NORMAL"}, "oven": {"power": "OFF"}, "dishwasher": {"cycle": "IDLE"}, "coffee_machine": {"power": "OFF"},
+    "router": {"uplink": "UP"}, "thermostat": {"mode": "COMFORT"}, "smoke_detector": {"alarm": "CLEAR"},
+    "smart_bed": {"power": "OFF"}, "ac": {"power": "ON", "mode": "ECO"}, "smart_speaker": {"power": "ON"},
+    "water_heater": {"power": "ON"}, "shower": {"cycle": "IDLE"}, "smart_mirror": {"power": "OFF"}, "leak_sensor": {"leak": "DRY"},
+    "nas": {"backup": "OK"}, "printer": {"state": "IDLE"}, "washer": {"cycle": "IDLE"}, "dryer": {"cycle": "IDLE"},
+    "energy_meter": {"grid": "IMPORT"}, "home_battery": {"mode": "HOLD"}, "solar_inverter": {"mode": "GENERATING"},
+    "garage_door": {"position": "CLOSED"}, "ev_charger": {"cycle": "IDLE"}, "irrigation": {"cycle": "IDLE"},
+    "pool_pump": {"cycle": "STOPPED"}, "doorbell": {"state": "IDLE"}, "camera": {"privacy": "OFF", "recording": "ON"},
+}
+COMMAND_EFFECT = {
+    "lock": ("lock", "LOCKED"), "unlock": ("lock", "UNLOCKED"), "led_on": ("led", "ON"), "led_off": ("led", "OFF"),
+    "on": ("power", "ON"), "off": ("power", "OFF"), "test_alarm": ("alarm", "TEST"), "clear_alarm": ("alarm", "IDLE"),
+    "mute": ("sound", "MUTED"), "start": ("cycle", "RUNNING"), "stop": ("cycle", "STOPPED"), "dock": ("cycle", "DOCKED"),
+    "open": ("position", "OPEN"), "close": ("position", "CLOSED"), "boost_cool": ("mode", "BOOST"), "normal": ("mode", "NORMAL"),
+    "preheat": ("power", "PREHEATING"), "brew": ("power", "BREWING"), "reboot": ("uplink", "REBOOTING"), "eco": ("mode", "ECO"),
+    "comfort": ("mode", "COMFORT"), "test": ("alarm", "TESTING"), "warm": ("mode", "WARMING"), "boost": ("power", "BOOST"),
+    "grid_charge": ("mode", "GRID CHARGE"), "hold": ("mode", "HOLD"), "privacy_on": ("privacy", "ON"), "privacy_off": ("privacy", "OFF"),
+}
 ACTION_FOR = {"LOW": "LOGGED", "MEDIUM": "ALERT_USER", "HIGH": "BLOCK_SOURCE", "CRITICAL": "QUARANTINE_DEVICE"}
 SEV_WEIGHT = {"LOW": 0.25, "MEDIUM": 0.5, "HIGH": 1.0, "CRITICAL": 1.0}
 CRYPTO_REASON_TO_EVENT = {"UNKNOWN_DEVICE": "ROGUE_DEVICE", "BAD_SIGNATURE": "SPOOFING", "REPLAY": "REPLAY", "STALE_TIMESTAMP": "REPLAY"}
@@ -61,6 +80,7 @@ class DeviceRuntime:
     profile: Profile
     identity: DeviceIdentity
     legacy: LegacyEsp32Source | None = None
+    spec: DeviceSpec | None = None
     history: deque = field(default_factory=lambda: deque(maxlen=240))
     last: dict[str, Any] = field(default_factory=dict)
     last_env: dict[str, Any] | None = None
@@ -137,29 +157,25 @@ class Engine:
     # =============================================================================
     def _bootstrap_devices(self) -> None:
         mem = self.s.in_memory
-        for did, name, kind in DEVICES:
+        for spec in catalog(self.s.home):
+            did = spec.id
             safe = did.replace(":", "_")
             key = load_or_create_key(None if mem else os.path.join(self.s.key_dir, "devices", f"{safe}.pem"))
             existing = self.contract.get_device(did)
             if existing is None or existing.get("unregistered"):
-                fw = sha256_hex(f"firmware-v1.0:{kind}")
-                self.contract.registerDevice(did, name, kind, key.public_hex, fw)
+                fw = sha256_hex(f"firmware-v1.0:{spec.dtype}:{did}")
+                self.contract.registerDevice(did, spec.name, spec.dtype, key.public_hex, fw)
             legacy = None
             if self.s.mode == "hybrid" and did == SMART_HOME_ID and self.s.esp32_smart_home_ip:
                 legacy = LegacyEsp32Source(self.s.esp32_smart_home_ip)
                 if not self.s.virtual_clock:
                     legacy.start(self.s.tick_seconds)
-            rt = DeviceRuntime(did, name, kind, PROFILES[kind], DeviceIdentity(did, key), legacy)
-            rt.state = self._initial_state(kind)
+            rt = DeviceRuntime(did, spec.name, spec.dtype, spec.profile(), DeviceIdentity(did, key), legacy, spec=spec)
+            rt.state = dict(INITIAL_STATE.get(spec.dtype, {}))
             self.runtimes[did] = rt
-            if legacy is None:
-                warm_baseline(self.baseline, did, rt.profile, 14, np.random.default_rng(self.rng.integers(1 << 30)))
+            if legacy is None:   # seed the behavioural baseline (a real device learns its own online)
+                warm_baseline(self.baseline, did, rt.profile, 7, np.random.default_rng(self.rng.integers(1 << 30)), 10.0)
         self._post_feed("SYSTEM", "TrustChain-IDRS online", {"devices": len(self.runtimes), "mode": self.s.mode})
-
-    @staticmethod
-    def _initial_state(kind: str) -> dict[str, Any]:
-        return {"smart_home_node": {"lock": "LOCKED", "led": "OFF"}, "bulb": {"power": "ON"}, "fan": {"power": "OFF"},
-                "security_node": {"alarm": "IDLE"}, "door_sensor": {"door": "CLOSED"}}.get(kind, {})
 
     # =============================================================================
     # run loop
@@ -193,8 +209,10 @@ class Engine:
             self.sim_minute = (self.sim_minute + self.s.sim_minutes_per_tick) % 1440.0
             hour = self.sim_minute / 60.0
             now = self.clock.now()
+            deferred: list = []
             for rt in self.runtimes.values():
-                self._tick_device(rt, hour, now)
+                self._tick_device(rt, hour, now, deferred)
+            self._flush(deferred, hour, now)
             self._inject_crypto_attacks(hour, now)
             self._age_attacks(now)
             self._reconcile_physical(now)
@@ -208,7 +226,7 @@ class Engine:
                 return a
         return None
 
-    def _tick_device(self, rt: DeviceRuntime, hour: float, now: float) -> None:
+    def _tick_device(self, rt: DeviceRuntime, hour: float, now: float, deferred: list | None = None) -> None:
         atk = None
         if rt.legacy is not None:
             sample = rt.legacy.poll()
@@ -224,12 +242,13 @@ class Engine:
         rt.last_env = env
         meta = ({"source": atk["source"], "port": atk["port"], "protocol": atk["protocol"], "injected": False} if atk
                 else {"source": "device", "port": 0, "protocol": "HTTP", "injected": False})
-        self._ingest(env, meta, hour, now, attested=rt.legacy is not None)
+        self._ingest(env, meta, hour, now, attested=rt.legacy is not None, deferred=deferred)
 
     # =============================================================================
     # gateway ingest
     # =============================================================================
-    def _ingest(self, env: dict[str, Any], meta: dict[str, Any], hour: float, now: float, attested: bool = False) -> None:
+    def _ingest(self, env: dict[str, Any], meta: dict[str, Any], hour: float, now: float, attested: bool = False,
+                deferred: list | None = None) -> None:
         self.counters["messages"] += 1
         if meta.get("injected") and self.blocklist.blocked(meta.get("source"), now):
             self.counters["dropped_blocked"] += 1
@@ -244,17 +263,33 @@ class Engine:
         if rt is None:
             return
         sample = {k: val for k, val in v.metrics.items() if k not in ("device_id", "timestamp", "nonce")}
+        if deferred is not None:        # scored together with the rest of this tick's devices
+            deferred.append((rt, sample, meta, attested))
+            return
         self._analyse(rt, sample, hour, meta, now, attested)
+
+    def _flush(self, deferred: list, hour: float, now: float) -> None:
+        """Extract features for every verified message, run ONE batched ML inference, then decide."""
+        if not deferred:
+            return
+        feats = [extract(self.baseline, rt.id, hour, sample) for rt, sample, _, _ in deferred]
+        scores = self.model.score_batch(np.vstack([f[0] for f in feats]))
+        for (rt, sample, meta, attested), (vec, fi), ml in zip(deferred, feats, scores):
+            self._analyse(rt, sample, hour, meta, now, attested, pre=(vec, fi, ml))
 
     # =============================================================================
     # detection + decision
     # =============================================================================
-    def _analyse(self, rt: DeviceRuntime, sample: dict[str, Any], hour: float, meta: dict[str, Any], now: float, attested: bool) -> None:
+    def _analyse(self, rt: DeviceRuntime, sample: dict[str, Any], hour: float, meta: dict[str, Any], now: float, attested: bool,
+                 pre: tuple | None = None) -> None:
         dev = self.contract.get_device(rt.id)
         trust = dev["trust"]
         status = dev["status"]
-        vec, fi = extract(self.baseline, rt.id, hour, sample)
-        ml = self.model.score(vec)
+        if pre is not None:
+            vec, fi, ml = pre
+        else:
+            vec, fi = extract(self.baseline, rt.id, hour, sample)
+            ml = self.model.score(vec)
         rules = static_rules(sample)
 
         # Real hardware: the models were trained on simulated devices, so until they are retrained on
@@ -270,7 +305,10 @@ class Engine:
             rule_sev = 0.0
         ml_comp = max(ml["ml_risk"], ml["cls_conf"] * 0.85 if ml["cls_attack"] else 0.0)
         bdev = baseline_deviation(fi["req_z"], fi["primary_z"], fi["warm"])
-        if shadow:
+        # Risk reflects *confirmed* evidence: a rule hit, or ML flagged on consecutive ticks. A single noisy tick
+        # must not paint a healthy device "suspicious" (and ML-only evidence is advisory on real hardware).
+        confirmed = bool(rules) or rt.ml_streak >= self.s.ml_confirmations
+        if shadow or not confirmed:
             ml_comp = bdev = 0.0
         integrity_open = self.contract.unresolved_integrity.get(rt.id, 0) > 0
         risk, parts = risk_score(rule_sev, ml_comp, bdev, trust, integrity_open)
@@ -295,14 +333,17 @@ class Engine:
         rt.clean_streak = 0
         detectors = {"rules": rules, "ml": {k: (round(v, 4) if isinstance(v, float) else v) for k, v in ml.items()},
                      "baseline": fi, "risk_parts": parts, "ml_streak": rt.ml_streak}
-        self._raise_event(rt.id, etype, risk, meta, sample, detectors, now, attested=attested)
+        # Weak, unexplained evidence (no rule hit, low overall risk) may alert the user but must never escalate
+        # to blocking or quarantine on its own: that needs a rule hit or strong multi-signal risk.
+        weak = (not rules and risk < 0.5) or etype == "ML_BEHAVIOR_ANOMALY"
+        self._raise_event(rt.id, etype, risk, meta, sample, detectors, now, attested=attested, weak=weak)
 
     # =============================================================================
     # event creation: local store + ledger + trust + response
     # =============================================================================
     def _raise_event(self, device_id: str, etype: str, risk: float, meta: dict[str, Any], sample: dict[str, Any],
                      detectors: dict[str, Any], now: float, attested: bool = False, forced_severity: str | None = None,
-                     extra: dict[str, Any] | None = None) -> dict[str, Any] | None:
+                     extra: dict[str, Any] | None = None, weak: bool = False) -> dict[str, Any] | None:
         rt = self.runtimes.get(device_id)
         if rt is not None:
             last = rt.last_event_ts.get(etype)
@@ -324,6 +365,8 @@ class Engine:
         sev = escalate(sev, mem["escalate_levels"])
         if victim:
             sev = SEVERITIES[min(SEVERITIES.index(sev), SEVERITIES.index("HIGH"))]
+        if weak:
+            sev = SEVERITIES[min(SEVERITIES.index(sev), SEVERITIES.index("MEDIUM"))]
         if forced_severity:
             sev = forced_severity
 
@@ -691,8 +734,12 @@ class Engine:
             elif src is not None and src["status"] != ACTIVE:
                 verdict, reason = False, f"originating device is {src['status']} — outbound commands blocked"
             elif tgt["status"] != ACTIVE:
-                verdict = False
-                reason = (f"target is {tgt['status']} — inbound commands blocked. " + (LOCK_POLICY if rt.kind == "smart_home_node" else ""))
+                mode = rt.spec.fail_mode if rt.spec else "standard"
+                if command in ALLOW_WHEN_QUARANTINED.get(rt.kind, ()) and (src is None or src["trust"] >= DEFAULT_MIN_TRUST):
+                    verdict, reason = True, f"allowed: '{command}' reduces risk, so it is honoured even while {tgt['status']}"
+                else:
+                    verdict = False
+                    reason = f"target is {tgt['status']} — inbound command blocked. " + QUARANTINE_POLICY.get(mode, "")
             elif src is not None and src["trust"] < MIN_TRUST.get(command, DEFAULT_MIN_TRUST):
                 verdict, reason = False, f"origin trust {src['trust']:.0f} below {MIN_TRUST.get(command, DEFAULT_MIN_TRUST)} required for '{command}'"
             if verdict:
@@ -706,16 +753,8 @@ class Engine:
 
     @staticmethod
     def _apply_command(rt: DeviceRuntime, command: str) -> None:
-        if command in ("lock", "unlock"):
-            rt.state["lock"] = "LOCKED" if command == "lock" else "UNLOCKED"
-        elif command in ("led_on", "led_off"):
-            rt.state["led"] = "ON" if command == "led_on" else "OFF"
-        elif command in ("on", "off"):
-            rt.state["power"] = command.upper()
-        elif command == "test_alarm":
-            rt.state["alarm"] = "TEST"
-        elif command == "clear_alarm":
-            rt.state["alarm"] = "IDLE"
+        key, value = COMMAND_EFFECT.get(command, ("last_command", command))
+        rt.state[key] = value
 
     # =============================================================================
     # views
@@ -750,9 +789,22 @@ class Engine:
              "recovery": d.get("recovery"), "registered_block": d.get("registered_block"),
              "pubkey": d.get("pubkey"), "firmware_hash": d.get("firmware_hash"),
              "series": list(rt.history)[-series:]}
+        sp = rt.spec
+        if sp is not None:
+            room = next(r for r in ROOMS if r["id"] == sp.room)
+            v.update(dtype=sp.dtype, room=sp.room, room_name=room["name"], category=sp.category, value_usd=sp.value_usd,
+                     icon=sp.icon, model=sp.model, critical=sp.critical, fail_mode=sp.fail_mode,
+                     fail_policy=QUARANTINE_POLICY.get(sp.fail_mode, ""), commands=COMMANDS.get(rt.kind, []))
         if rt.kind == "smart_home_node":
             v["lock_policy"] = LOCK_POLICY
         return v
+
+    def _cached_audit(self, now: float) -> dict[str, Any]:
+        """Full chain verification is O(blocks x validators); refresh it when the chain grows or every few seconds."""
+        sig = (self.contract.height, int(now // 3))
+        if getattr(self, "_audit_sig", None) != sig:
+            self._audit, self._audit_sig = self.network.audit(), sig
+        return self._audit
 
     def unknown_devices(self) -> list[dict[str, Any]]:
         out = []
@@ -765,17 +817,32 @@ class Engine:
     def overview(self) -> dict[str, Any]:
         with self.lock:
             now = self.clock.now()
-            devs = [self.device_view(rt, 60) for rt in self.runtimes.values()]
+            devs = [self.device_view(rt, 40) for rt in self.runtimes.values()]
             unknown = self.unknown_devices()
             quarantined = [d for d in devs + unknown if d["status"] in (QUARANTINED, RECOVERY_PENDING)]
             levels = ["SAFE", "SUSPICIOUS", "HIGH", "CRITICAL"]
             top = max((levels.index(d["band"]) for d in devs if d["status"] == ACTIVE), default=0)
             if quarantined:
                 top = max(top, levels.index("HIGH"))
-            net = self.network.audit()
+            net = self._cached_audit(now)
+            levels_ix = {n: i for i, n in enumerate(levels)}
+            rooms = []
+            for r in ROOMS:
+                members = [d for d in devs if d.get("room") == r["id"]]
+                if not members:
+                    continue
+                worst = max((levels_ix[d["band"]] for d in members if d["status"] == ACTIVE), default=0)
+                nq = sum(1 for d in members if d["status"] != ACTIVE)
+                rooms.append({**r, "devices": [d["id"] for d in members], "count": len(members), "value_usd": sum(d["value_usd"] for d in members),
+                              "quarantined": nq, "worst_band": levels[max(worst, levels_ix["HIGH"] if nq else 0)],
+                              "attacks": sum(1 for d in members if d.get("attack"))})
+            value = sum(d.get("value_usd", 0) for d in devs)
+            value_q = sum(d.get("value_usd", 0) for d in devs if d["status"] != ACTIVE)
             return {
                 "mode": self.s.mode, "now": now, "tick": self.tick, "sim": self.sim_clock(),
-                "threat_level": levels[top], "devices": devs, "unknown_devices": unknown,
+                "threat_level": levels[top], "devices": devs, "unknown_devices": unknown, "rooms": rooms,
+                "categories": CATEGORIES, "home": {"devices": len(devs), "value_usd": value, "value_quarantined_usd": value_q,
+                                                   "critical": sum(1 for d in devs if d.get("critical"))},
                 "kpis": {"devices": len(devs), "quarantined": len(quarantined), "avg_trust": round(sum(d["trust"] for d in devs) / max(len(devs), 1), 1),
                          "events": self.store.count(), "chain_height": self.contract.height, "ledger_consistent": net["consistent"],
                          "integrity_status": self.integrity.last_report.get("status"), **self.counters},

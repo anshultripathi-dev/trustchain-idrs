@@ -17,7 +17,8 @@ from fastapi.staticfiles import StaticFiles
 from .config import ROOT, Settings
 from .detection.baseline import Baseline
 from .detection.train import ensure_model
-from .engine import DEVICES, SMART_HOME_ID, Engine
+from .engine import SMART_HOME_ID, Engine
+from .sim.home import CATEGORIES, FAIL_MODES, ROOMS
 from .ledger.chain import LedgerError
 from .ledger.contract import ContractError
 from .response import COMMANDS
@@ -116,6 +117,19 @@ def feed(since: int = 0, limit: int = 60):
     with E().lock:
         items = [f for f in E().feed if f["seq"] > since][:limit]
     return {"items": items, "seq": E().seq}
+
+
+# ------------------------------------------------------------------ home
+@app.get("/api/home")
+def home():
+    """The smart-home catalogue: rooms, categories, fail modes and every device with its value and policy."""
+    e = E()
+    with e.lock:
+        devs = [{"id": rt.id, "name": rt.name, "dtype": rt.kind, "room": rt.spec.room, "category": rt.spec.category,
+                 "value_usd": rt.spec.value_usd, "icon": rt.spec.icon, "model": rt.spec.model, "critical": rt.spec.critical,
+                 "fail_mode": rt.spec.fail_mode, "commands": COMMANDS.get(rt.kind, [])} for rt in e.runtimes.values() if rt.spec]
+        return {"mode": e.s.home, "rooms": ROOMS, "categories": CATEGORIES, "fail_modes": FAIL_MODES, "devices": devs,
+                "totals": {"devices": len(devs), "value_usd": sum(d["value_usd"] for d in devs), "critical": sum(1 for d in devs if d["critical"])}}
 
 
 # ------------------------------------------------------------------ devices
@@ -306,7 +320,10 @@ def attacks():
     e = E()
     with e.lock:
         return {"catalog": [{"type": k, **v} for k, v in ATTACKS.items()], "active": [e._attack_view(a) for a in e.attacks],
-                "log": list(e.attack_log), "devices": [{"id": d[0], "name": d[1], "kind": d[2]} for d in DEVICES]}
+                "log": list(e.attack_log), "devices": [{"id": rt.id, "name": rt.name, "kind": rt.kind, "room": rt.spec.room if rt.spec else None,
+                                                                    "icon": rt.spec.icon if rt.spec else "", "real": rt.legacy is not None}
+                                                                   for rt in e.runtimes.values()],
+                "rooms": [{"id": r["id"], "name": r["name"], "icon": r["icon"]} for r in ROOMS]}
 
 
 @app.post("/api/attacks")

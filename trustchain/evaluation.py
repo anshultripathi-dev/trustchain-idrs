@@ -17,7 +17,7 @@ TRIALS_DEFAULT = 5
 
 
 def _engine(model, seed: int, hour: float) -> Engine:
-    return Engine(Settings(in_memory=True, virtual_clock=True), model=model, seed=seed, start_hour=hour)
+    return Engine(Settings(in_memory=True, virtual_clock=True, home="core"), model=model, seed=seed, start_hour=hour)
 
 
 def run_clean(model, ticks: int = 1200, seed: int = 11) -> dict[str, Any]:
@@ -29,6 +29,24 @@ def run_clean(model, ticks: int = 1200, seed: int = 11) -> dict[str, Any]:
             "false_positive_rate": round(n_events / (ticks * len(e.runtimes)), 6),
             "false_quarantines": sum(1 for d in e.contract.list_devices() if d["status"] == QUARANTINED),
             "sim_days": round(ticks * e.s.sim_minutes_per_tick / 1440, 2)}
+
+
+def run_home_clean(model, ticks: int = 1728, seeds=(1, 2, 3)) -> dict[str, Any]:
+    """Clean traffic on the FULL smart home (every device, every room): alert noise and false quarantines."""
+    sev: dict[str, int] = {}
+    events = quarantines = device_ticks = 0
+    for seed in seeds:
+        e = Engine(Settings(in_memory=True, virtual_clock=True, home="full"), model=model, seed=seed, start_hour=6.0)
+        for _ in range(ticks):
+            e.step()
+        device_ticks += ticks * len(e.runtimes)
+        for ev in e.store.list_events(10_000):
+            sev[ev["severity"]] = sev.get(ev["severity"], 0) + 1
+        events += e.store.count()
+        quarantines += sum(1 for d in e.contract.list_devices() if d["status"] == QUARANTINED)
+    days = len(seeds) * ticks * e.s.sim_minutes_per_tick / 1440
+    return {"devices": len(e.runtimes), "device_ticks": device_ticks, "sim_days": round(days, 1), "events": events,
+            "events_per_sim_day": round(events / days, 2), "by_severity": sev, "false_quarantines": quarantines}
 
 
 def run_scenario(model, atype: str, trial: int) -> dict[str, Any]:
@@ -77,6 +95,9 @@ def evaluate(model, trials: int = TRIALS_DEFAULT, progress=None) -> dict[str, An
     out["clean"] = run_clean(model)
     if progress:
         progress("clean")
+    out["home_clean"] = run_home_clean(model)
+    if progress:
+        progress("home_clean")
     for atype in ATTACKS:
         rows = [run_scenario(model, atype, t) for t in range(trials)]
         lat = [r["latency_ticks"] for r in rows if r["latency_ticks"] is not None]

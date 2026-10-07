@@ -14,7 +14,7 @@ import numpy as np
 from sklearn.ensemble import IsolationForest, RandomForestClassifier
 from sklearn.metrics import classification_report, confusion_matrix
 
-from ..sim.profiles import PROFILES, TRAFFIC_ATTACKS, apply_attack, normal_sample
+from ..sim.profiles import PROFILES, TRAFFIC_ATTACKS, apply_attack, normal_sample, profiles_signature
 from .baseline import Baseline, warm_baseline
 from .features import FEATURES, extract
 from .ml import CLASSES, CLF_CONFIDENCE, ModelBundle
@@ -119,12 +119,12 @@ def evaluate(bundle: ModelBundle, test_normal: list[tuple[np.ndarray, list[dict]
     return result
 
 
-def train_and_evaluate(seed: int = 7, normal_days: int = 10, per_class: int = 6, verbose: bool = False) -> ModelBundle:
+def train_and_evaluate(seed: int = 7, normal_days: int = 6, per_class: int = 4, verbose: bool = False) -> ModelBundle:
     t0 = time.time()
     rng_base = np.random.default_rng(seed)
     baseline = Baseline()
     for kind, prof in PROFILES.items():
-        warm_baseline(baseline, kind, prof, 14, np.random.default_rng(rng_base.integers(1 << 30)), STEP_MIN)
+        warm_baseline(baseline, kind, prof, 10, np.random.default_rng(rng_base.integers(1 << 30)), STEP_MIN)
 
     # ---- training data ---------------------------------------------------------------
     rng_tr = np.random.default_rng(seed + 1)
@@ -152,7 +152,7 @@ def train_and_evaluate(seed: int = 7, normal_days: int = 10, per_class: int = 6,
     rng_te = np.random.default_rng(seed + 100)
     test_normal = []
     for kind in PROFILES:
-        X, _, samples = _normal_run(baseline, kind, rng_te, 6)
+        X, _, samples = _normal_run(baseline, kind, rng_te, 4)
         test_normal.append((X, samples))
     eps_te = _episodes(baseline, rng_te, per_class * 3)
     comparison = evaluate(bundle, test_normal, eps_te)
@@ -172,6 +172,8 @@ def train_and_evaluate(seed: int = 7, normal_days: int = 10, per_class: int = 6,
     bins = np.linspace(lo, hi, 25)
     metrics = {
         "trained_at": time.time(),
+        "profiles_sig": profiles_signature(),
+        "profile_kinds": sorted(PROFILES),
         "data": "synthetic simulator traffic (not real household data)",
         "seconds": round(time.time() - t0, 1),
         "features": FEATURES,
@@ -203,7 +205,8 @@ def ensure_model(model_dir: str, retrain: bool = False) -> ModelBundle:
     path = os.path.join(model_dir, "intrusion_model.joblib")
     if not retrain:
         b = ModelBundle.load(path)
-        if b:
+        # a model trained on a different set of device profiles is stale -> retrain
+        if b and b.metrics.get("profiles_sig") == profiles_signature():
             return b
     b = train_and_evaluate()
     b.save(path)
